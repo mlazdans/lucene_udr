@@ -220,7 +220,6 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
 
             MultiFieldQueryParserPtr  parser = newLucene<MultiFieldQueryParser>(LuceneVersion::LUCENE_CURRENT, fields, analyzer);
             parser->setAllowLeadingWildcard(true);
-            parser->setLowercaseExpandedTerms(false);
             parser->setDefaultOperator(QueryParser::OR_OPERATOR);
             query = parser->parse(StringUtils::toUnicode(queryStr));
             docs = searcher->search(query, limit);
