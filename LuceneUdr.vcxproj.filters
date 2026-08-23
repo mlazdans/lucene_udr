@@ -79,6 +79,9 @@
     <ClCompile Include="src\FTSTrigger.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
+    <ClCompile Include="src\WhitespaceLowerCaseAnalyzer.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\LuceneUdr.h">
@@ -127,6 +130,9 @@
       <Filter>Header files</Filter>
     </ClInclude>
     <ClInclude Include="src\FTSTrigger.h">
+      <Filter>Header files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\WhitespaceLowerCaseAnalyzer.h">
       <Filter>Header files</Filter>
     </ClInclude>
   </ItemGroup>

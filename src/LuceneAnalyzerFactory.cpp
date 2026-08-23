@@ -13,6 +13,7 @@
 
 #include "LuceneAnalyzerFactory.h"
 #include "WhitespaceAnalyzer.h"
+#include "WhitespaceLowerCaseAnalyzer.h"
 #include "ArabicAnalyzer.h"
 #include "BrazilianAnalyzer.h"
 #include "CJKAnalyzer.h"
@@ -63,6 +64,15 @@ namespace LuceneUDR
                     "WHITESPACE",
                     {
                         []() -> AnalyzerPtr { return newLucene<WhitespaceAnalyzer>(); },
+                        [](const HashSet<String> stopWords) -> AnalyzerPtr { return nullptr; },
+                        []() -> const HashSet<String> { return HashSet<String>::newInstance(); },
+                        false
+                    }
+                },
+                {
+                    "WHITESPACE_LC",
+                    {
+                        []() -> AnalyzerPtr { return newLucene<WhitespaceLowerCaseAnalyzer>(); },
                         [](const HashSet<String> stopWords) -> AnalyzerPtr { return nullptr; },
                         []() -> const HashSet<String> { return HashSet<String>::newInstance(); },
                         false
