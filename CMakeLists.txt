@@ -104,7 +104,7 @@ set(liblucene++-contrib_LIBRARIES "lucene++-contrib")
 include_directories(${liblucene++_INCLUDE_DIRS})
 include_directories(${liblucene++-contrib_INCLUDE_DIRS})
 include_directories(${FIREBIRD_INCLUDE_DIR})
-include_directories(C:/Boost/include/boost-1_83)
+include_directories(C:/local/boost_1_83_0)
 
 link_directories(${liblucene++_LIBRARY_DIRS})
 link_directories(${liblucene++-contrib_LIBRARY_DIRS})
@@ -115,10 +115,10 @@ link_directories(${FIREBIRD_LIB_DIR})
 ####################################
 target_include_directories(luceneudr PRIVATE "include")
 target_include_directories(luceneudr PRIVATE ${FIREBIRD_INCLUDE_DIR})
-target_include_directories(luceneudr PRIVATE "C:/Boost/include/boost-1_83")
+target_include_directories(luceneudr PRIVATE "C:/local/boost_1_83_0")
 
 target_link_directories(luceneudr PRIVATE ${FIREBIRD_LIB_DIR})
-target_link_directories(luceneudr PRIVATE "C:/Boost/lib")
+target_link_directories(luceneudr PRIVATE "C:/local/boost_1_83_0/lib64-msvc-14.2")
 target_link_directories(luceneudr PRIVATE ${liblucene++_LIBRARY_DIRS})
 target_link_directories(luceneudr PRIVATE ${liblucene++-contrib_LIBRARY_DIRS})
 
