@@ -126,6 +126,7 @@ FB_UDR_BEGIN_FUNCTION(bestFragementHighligh)
 
             const auto& analyzer = analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
             const auto& parser = newLucene<QueryParser>(LuceneVersion::LUCENE_CURRENT, StringUtils::toUnicode(fieldName), analyzer);
+            parser->setAllowLeadingWildcard(true);
             const auto& query = parser->parse(StringUtils::toUnicode(queryStr));
             const auto& formatter = newLucene<SimpleHTMLFormatter>(StringUtils::toUnicode(leftTag), StringUtils::toUnicode(rightTag));
             const auto& scorer = newLucene<QueryScorer>(query);
@@ -256,6 +257,7 @@ FB_UDR_BEGIN_PROCEDURE(bestFragementsHighligh)
 
             const auto& analyzer = procedure->analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
             const auto& parser = newLucene<QueryParser>(LuceneVersion::LUCENE_CURRENT, StringUtils::toUnicode(fieldName), analyzer);
+            parser->setAllowLeadingWildcard(true);
             const auto& query = parser->parse(StringUtils::toUnicode(queryStr));
             const auto& formatter = newLucene<SimpleHTMLFormatter>(StringUtils::toUnicode(leftTag), StringUtils::toUnicode(rightTag));
             const auto& scorer = newLucene<QueryScorer>(query);
