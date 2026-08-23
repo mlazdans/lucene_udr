@@ -39,7 +39,7 @@ const std::string queryEscape(const std::string& query)
     std::stringstream ss;
     for (const auto ch : query) {
         switch (ch) {
-        case '+': 
+        case '+':
         case '-':
         case '!':
         case '^':
@@ -145,7 +145,7 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
 
     FTSIndexRepositoryPtr indexRepository{nullptr};
 
-    
+
     void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
         char* name, unsigned nameSize)
     {
@@ -153,14 +153,14 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
         memset(name, 0, nameSize);
         memcpy(name, INTERNAL_UDR_CHARSET, std::size(INTERNAL_UDR_CHARSET));
     }
-    
+
     FB_UDR_EXECUTE_PROCEDURE
     {
         if (in->indexNameNull) {
             throwException(status, "Index name can not be NULL");
         }
         const std::string indexName(in->indexName.str, in->indexName.length);
-        
+
         std::string queryStr;
         if (!in->queryNull) {
             queryStr.assign(in->query.str, in->query.length);
@@ -197,7 +197,7 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
             const auto analyzers = procedure->indexRepository->getAnalyzerRepository();
             AnalyzerPtr analyzer = analyzers->createAnalyzer(status, att, tra, sqlDialect, ftsIndex->analyzer);
             searcher = newLucene<IndexSearcher>(ftsIndexDir, true);
-            
+
             std::string keyFieldName;
             auto fields = Collection<String>::newInstance();
             for (const auto& segment : ftsIndex->segments) {
@@ -217,8 +217,10 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
             else {
                 keyFieldInfo->initDB_KEYField(ftsIndex->relationName);
             }
-            
+
             MultiFieldQueryParserPtr  parser = newLucene<MultiFieldQueryParser>(LuceneVersion::LUCENE_CURRENT, fields, analyzer);
+            parser->setAllowLeadingWildcard(true);
+            parser->setLowercaseExpandedTerms(false);
             parser->setDefaultOperator(QueryParser::OR_OPERATOR);
             query = parser->parse(StringUtils::toUnicode(queryStr));
             docs = searcher->search(query, limit);
@@ -250,7 +252,7 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
     RelationFieldInfoPtr keyFieldInfo{ nullptr };
     String unicodeKeyFieldName = L"";
     SearcherPtr searcher{ nullptr };
-    QueryPtr query{ nullptr };	
+    QueryPtr query{ nullptr };
     TopDocsPtr docs{ nullptr };
     Collection<ScoreDocPtr>::iterator it;
 
@@ -797,7 +799,7 @@ FB_UDR_BEGIN_PROCEDURE(ftsClearLog)
 FB_UDR_END_PROCEDURE
 
 /***
-PROCEDURE FTS$UPDATE_INDEXES 
+PROCEDURE FTS$UPDATE_INDEXES
 EXTERNAL NAME 'luceneudr!updateFtsIndexes'
 ENGINE UDR;
 ***/
@@ -816,7 +818,7 @@ FB_UDR_BEGIN_PROCEDURE(updateFtsIndexes)
     AutoRelease<IStatement> logStmt{nullptr};
 
     void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
-        char* name, unsigned nameSize) 
+        char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
         memset(name, 0, nameSize);
@@ -848,13 +850,13 @@ ORDER BY FTS$LOG_ID
 )SQL";
 
         const auto& ftsDirectoryPath = getFtsDirectory(status, context);
-        
+
         // get all indexes with segments
         FTSIndexMap indexes;
         procedure->indexRepository->fillAllIndexesWithFields(status, att, tra, sqlDialect, indexes);
         // fill map indexes of relationName
         std::map<std::string, std::list<std::string>> indexesByRelation;
-        for (const auto& [indexName, ftsIndex] : indexes) {	
+        for (const auto& [indexName, ftsIndex] : indexes) {
             if (!ftsIndex->isActive()) {
                 continue;
             }
@@ -941,7 +943,7 @@ ORDER BY FTS$LOG_ID
             }
         }
 
-        try 
+        try
         {
             DBKEYInput dbKeyInput(status, context->getMaster());
             UUIDInput uuidInput(status, context->getMaster());
@@ -962,7 +964,7 @@ ORDER BY FTS$LOG_ID
 
             LogDelInput logDelInput(status, context->getMaster());
 
-            // prepare statement for retrieval record from FTS log 
+            // prepare statement for retrieval record from FTS log
             if (!procedure->logStmt.hasData()) {
                 procedure->logStmt.reset(att->prepare(
                     status,
@@ -1032,9 +1034,9 @@ ORDER BY FTS$LOG_ID
                         continue;
                     }
 
-                    if (changeType == "D") {						
+                    if (changeType == "D") {
                         TermPtr term = newLucene<Term>(ftsIndex->unicodeKeyFieldName, unicodeKeyValue);
-                        indexWriter->deleteDocuments(term);		
+                        indexWriter->deleteDocuments(term);
                         continue;
                     }
 
@@ -1114,7 +1116,7 @@ ORDER BY FTS$LOG_ID
                                     if (!value.empty()) {
                                         // re-encode content to Unicode only if the string is non-binary
                                         if (!field->isBinary()) {
-                                            unicodeValue = StringUtils::toUnicode(value); 
+                                            unicodeValue = StringUtils::toUnicode(value);
                                         }
                                         else {
                                             // convert the binary string to a hexadecimal representation
@@ -1168,7 +1170,7 @@ ORDER BY FTS$LOG_ID
                     nullptr,
                     nullptr
                 );
-                
+
             }
             logRs->close(status);
             logRs.release();
@@ -1227,7 +1229,7 @@ ORDER BY FTS$LOG_ID
     void setIndexToRebuild(ThrowStatusWrapper* const status, IAttachment* const att, const unsigned int sqlDialect, const FTSIndexPtr& ftsIndex)
     {
         ftsIndex->status = "U";
-        // this is done in an autonomous transaction				
+        // this is done in an autonomous transaction
         AutoRelease<ITransaction> tra(att->startTransaction(status, 0, nullptr));
         try {
             procedure->indexRepository->setIndexStatus(status, att, tra, sqlDialect, ftsIndex->indexName, ftsIndex->status);

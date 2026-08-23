@@ -48,7 +48,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_COMPILER_IS_GNUCXX)
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
         set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -stdlib=libc++")
-    endif()	
+    endif()
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
     string(REGEX REPLACE "[/-]W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
     if (NOT (CMAKE_VERSION VERSION_LESS 3.6.0)) # Compiler features for Intel in CMake 3.6+
@@ -77,21 +77,34 @@ endif()
 ####################################
 file(GLOB_RECURSE luceneudr_sources "src/*")
 
-set(FIREBIRD_DIR /opt/firebird)
+# WOW64 32-bit?
+set(FIREBIRD_DIR "C:/Program Files/Firebird/Firebird_3_0")
 set(FIREBIRD_LIB_DIR ${FIREBIRD_DIR}/lib)
 set(FIREBIRD_INCLUDE_DIR ${FIREBIRD_DIR}/include)
 set(FIREBIRD_UDR_DIR ${FIREBIRD_DIR}/plugins/udr)
+
+add_compile_definitions(WIN32_LEAN_AND_MEAN)
 
 ####################################
 # library target
 ####################################
 add_library(luceneudr SHARED ${luceneudr_sources})
 
-find_package(liblucene++ REQUIRED)
-find_package(liblucene++-contrib REQUIRED)
+# find_package(liblucene++ REQUIRED)
+# find_package(liblucene++-contrib REQUIRED)
+set(LUCENE_DIR "C:/Program Files/lucene++")
+set(liblucene++_INCLUDE_DIRS ${LUCENE_DIR}/include)
+set(liblucene++_LIBRARY_DIRS ${LUCENE_DIR}/lib)
+set(liblucene++_LIBRARIES "lucene++")
+
+set(liblucene++-contrib_INCLUDE_DIRS ${LUCENE_DIR}/include/lucene++)
+set(liblucene++-contrib_LIBRARY_DIRS ${LUCENE_DIR}/lib)
+set(liblucene++-contrib_LIBRARIES "lucene++-contrib")
 
 include_directories(${liblucene++_INCLUDE_DIRS})
 include_directories(${liblucene++-contrib_INCLUDE_DIRS})
+include_directories(${FIREBIRD_INCLUDE_DIR})
+include_directories(C:/Boost/include/boost-1_83)
 
 link_directories(${liblucene++_LIBRARY_DIRS})
 link_directories(${liblucene++-contrib_LIBRARY_DIRS})
@@ -100,12 +113,16 @@ link_directories(${FIREBIRD_LIB_DIR})
 ####################################
 # include directories
 ####################################
-target_include_directories(luceneudr
-  PRIVATE
-     "include"
-)
+target_include_directories(luceneudr PRIVATE "include")
+target_include_directories(luceneudr PRIVATE ${FIREBIRD_INCLUDE_DIR})
+target_include_directories(luceneudr PRIVATE "C:/Boost/include/boost-1_83")
 
-target_link_libraries(luceneudr fbclient)
+target_link_directories(luceneudr PRIVATE ${FIREBIRD_LIB_DIR})
+target_link_directories(luceneudr PRIVATE "C:/Boost/lib")
+target_link_directories(luceneudr PRIVATE ${liblucene++_LIBRARY_DIRS})
+target_link_directories(luceneudr PRIVATE ${liblucene++-contrib_LIBRARY_DIRS})
+
+target_link_libraries(luceneudr fbclient_ms)
 target_link_libraries(luceneudr -lstdc++fs)
 
 target_link_libraries(luceneudr ${liblucene++_LIBRARIES})
