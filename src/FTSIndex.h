@@ -14,13 +14,13 @@
  *  Contributor(s): ______________________________________.
 **/
 
-#include "LuceneUdr.h"
-#include <string>
 #include <list>
-#include <unordered_set>
 #include <map>
 #include <memory>
-#include <algorithm>
+#include <string>
+#include <unordered_set>
+
+#include "LuceneUdr.h"
 
 namespace FTSMetadata
 {
@@ -39,10 +39,24 @@ namespace FTSMetadata
 
     enum class FTSKeyType {NONE, DB_KEY, INT_ID, UUID};
 
+    inline FTSKeyType FTSKeyTypeFromString(std::string_view sKeyFieldType)
+    {
+        FTSKeyType keyFieldType{ FTSKeyType::DB_KEY };
+        if (sKeyFieldType == "UUID") {
+            keyFieldType = FTSKeyType::UUID;
+        }
+        if (sKeyFieldType == "DBKEY") {
+            keyFieldType = FTSKeyType::DB_KEY;
+        }
+        if (sKeyFieldType == "INT_ID") {
+            keyFieldType = FTSKeyType::INT_ID;
+        }
+        return keyFieldType;
+    }
+
     class FTSIndexSegment;
 
-    using FTSIndexSegmentPtr = std::unique_ptr<FTSIndexSegment>;
-    using FTSIndexSegmentList = std::list<FTSIndexSegmentPtr>;
+    using FTSIndexSegmentList = std::list<FTSIndexSegment>;
     using FTSIndexSegmentsMap = std::map<std::string, FTSIndexSegmentList>;
 
 
@@ -52,94 +66,100 @@ namespace FTSMetadata
     class FTSIndex final
     {
     public:
-        std::string indexName{ "" };
-        std::string relationName{ "" };
-        std::string analyzer{ "" };
-        std::string status{ "" }; // N - new index, I - inactive, U - need rebuild, C - complete
+        std::string indexName;
+        std::string relationName;
+        std::string analyzer;
+        std::string status; // N - new index, I - inactive, U - need rebuild, C - complete
 
         FTSIndexSegmentList segments;
 
         FTSKeyType keyFieldType{ FTSKeyType::NONE };
-        std::wstring unicodeKeyFieldName{ L"" };
-        std::wstring unicodeIndexDir{ L"" };
-    private:
-        Firebird::AutoRelease<Firebird::IStatement> m_stmtExtractRecord{ nullptr };
-        Firebird::AutoRelease<Firebird::IMessageMetadata> m_inMetaExtractRecord{ nullptr };
-        Firebird::AutoRelease<Firebird::IMessageMetadata> m_outMetaExtractRecord{ nullptr };
     public: 
 
         FTSIndex() = default;
 
         explicit FTSIndex(const FTSIndexRecord& record);
 
-        void init(const FTSIndexRecord& record);
-
         bool isActive() const {
             return (status == "C") || (status == "U");
         }
 
-        FTSIndexSegmentList::const_iterator findSegment(const std::string& fieldName);
+        bool emptySegments() const { 
+            return segments.empty();
+        }
 
-        FTSIndexSegmentList::const_iterator findKey();
+        FTSIndexSegmentList::const_iterator findSegment(const std::string& fieldName) const;
 
-        bool checkAllFieldsExists();
+        FTSIndexSegmentList::const_iterator findKey() const;
+
+        bool checkAllFieldsExists() const;
 
         std::string buildSqlSelectFieldValues(
-            Firebird::ThrowStatusWrapper* const status,
+            Firebird::ThrowStatusWrapper* status,
             unsigned int sqlDialect,
-            bool whereKey = false);
-
-        void prepareExtractRecordStmt(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
-            unsigned int sqlDialect
-        );
-
-        Firebird::IStatement* const getPreparedExtractRecordStmt()
-        {
-            return m_stmtExtractRecord;
-        }
-
-        Firebird::IMessageMetadata* const getOutExtractRecordMetadata()
-        {
-            return m_outMetaExtractRecord;
-        }
-
-        Firebird::IMessageMetadata* const getInExtractRecordMetadata()
-        {
-            return m_inMetaExtractRecord;
-        }
+            bool whereKey = false
+        ) const;
     };
 
 
-    using FTSIndexPtr = std::unique_ptr<FTSIndex>;
-    using FTSIndexList = std::list<FTSIndexPtr>;
-    using FTSIndexMap = std::map<std::string, FTSIndexPtr>;
+    using FTSIndexList = std::list<FTSIndex>;
 
     /// <summary>
     /// Metadata for a full-text index segment.
     /// </summary>
     class FTSIndexSegment final
     {
-    public:
-        std::string indexName{""};
-        std::string fieldName{""};
-        bool key = false;
-        double boost = 1.0;
-        bool boostNull = true;
-        bool fieldExists = false;
+
     public:
         FTSIndexSegment() = default;
 
-        bool compareFieldName(const std::string& aFieldName) const {
-            return (fieldName == aFieldName) || (fieldName == "RDB$DB_KEY" && aFieldName == "DB_KEY");
+        FTSIndexSegment(
+            std::string_view indexName,
+            std::string_view fieldName,
+            bool key,
+            double boost,
+            bool boostNull,
+            bool fieldExists
+        );
+
+        bool compareFieldName(std::string_view fieldName) const {
+            return (fieldName_ == fieldName) || (fieldName_ == "RDB$DB_KEY" && fieldName == "DB_KEY");
         }
+
+        const std::string& indexName() const {
+            return indexName_;
+        }
+
+        const std::string& fieldName() const {
+            return fieldName_;
+        }
+
+        bool isKey() const {
+            return key_;
+        }
+
+        double boost() const {
+            return boost_;
+        }
+
+        bool isBoostNull() const {
+            return boostNull_;
+        }
+
+        bool isFieldExists() const {
+            return fieldExists_;
+        }
+    private:
+        std::string indexName_;
+        std::string fieldName_;
+        bool key_ = false;
+        double boost_ = 1.0;
+        bool boostNull_ = true;
+        bool fieldExists_ = false;
     };
 
 
     class RelationHelper;
-    class AnalyzerRepository;
 
 
     /// <summary>
@@ -152,14 +172,11 @@ namespace FTSMetadata
 
     private:
         Firebird::IMaster* m_master = nullptr;
-        AnalyzerRepository* const m_analyzerRepository{ nullptr };
-        RelationHelper* const m_relationHelper{nullptr};
         // prepared statements
-        Firebird::AutoRelease<Firebird::IStatement> m_stmt_exists_index{ nullptr };
-        Firebird::AutoRelease<Firebird::IStatement> m_stmt_get_index{ nullptr };
-        Firebird::AutoRelease<Firebird::IStatement> m_stmt_index_fields{ nullptr };
-        Firebird::AutoRelease<Firebird::IStatement> m_stmt_index_key_field{ nullptr };
-        Firebird::AutoRelease<Firebird::IStatement> m_stmt_active_indexes_by_analyzer{ nullptr };
+        Firebird::AutoRelease<Firebird::IStatement> m_stmt_exists_index;
+        Firebird::AutoRelease<Firebird::IStatement> m_stmt_get_index;
+        Firebird::AutoRelease<Firebird::IStatement> m_stmt_index_fields;
+        Firebird::AutoRelease<Firebird::IStatement> m_stmt_active_indexes_by_analyzer;
 
     public:
 
@@ -167,18 +184,6 @@ namespace FTSMetadata
 
 
         explicit FTSIndexRepository(Firebird::IMaster* master);
-
-        ~FTSIndexRepository();
-
-        RelationHelper* const getRelationHelper()
-        {
-            return m_relationHelper;
-        }
-
-        AnalyzerRepository* const getAnalyzerRepository()
-        {
-            return m_analyzerRepository;
-        }
 
         /// <summary>
         /// Create a new full-text index. 
@@ -193,14 +198,14 @@ namespace FTSMetadata
         /// <param name="analyzerName">Analyzer name</param>
         /// <param name="description">Custom index description</param>
         void createIndex (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName,
-            const std::string& relationName,
-            const std::string& analyzerName,
-            const std::string& description);
+            std::string_view indexName,
+            std::string_view relationName,
+            std::string_view analyzerName,
+            ISC_QUAD* description);
 
         /// <summary>
         /// Remove a full-text index. 
@@ -212,11 +217,11 @@ namespace FTSMetadata
         /// <param name="sqlDialect">SQL dialect</param>
         /// <param name="indexName">Index name</param>
         void dropIndex (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName);
+            std::string_view indexName);
 
         /// <summary>
         /// Set the index status.
@@ -229,12 +234,12 @@ namespace FTSMetadata
         /// <param name="indexName">Index name</param>
         /// <param name="indexStatus">Index Status</param>
         void setIndexStatus (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName,
-            const std::string& indexStatus);
+            std::string_view indexName,
+            std::string_view indexStatus);
 
         /// <summary>
         /// Checks if an index with the given name exists.
@@ -248,11 +253,11 @@ namespace FTSMetadata
         /// 
         /// <returns>Returns true if the index exists, false otherwise</returns>
         bool hasIndex (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect, 
-            const std::string& indexName);
+            std::string_view indexName);
 
         /// <summary>
         /// Returns index metadata by index name.
@@ -264,17 +269,15 @@ namespace FTSMetadata
         /// <param name="att">Firebird attachment</param>
         /// <param name="tra">Firebird transaction</param>
         /// <param name="sqlDialect">SQL dialect</param>
-        /// <param name="ftsIndex">Index metadata</param>
         /// <param name="indexName">Index name</param>
         /// <param name="withSegments">Fill segments list</param>
         /// 
-        void getIndex (
-            Firebird::ThrowStatusWrapper* const status,
+        FTSIndex getIndex (
+            Firebird::ThrowStatusWrapper* status,
             Firebird::IAttachment* att,
             Firebird::ITransaction* tra,
             unsigned int sqlDialect, 
-            const FTSIndexPtr& ftsIndex,
-            const std::string& indexName,
+            std::string_view indexName,
             bool withSegments = false);
 
         /// <summary>
@@ -285,31 +288,15 @@ namespace FTSMetadata
         /// <param name="att">Firebird attachment</param>
         /// <param name="tra">Firebird transaction</param>
         /// <param name="sqlDialect">SQL dialect</param>
-        /// <param name="indexes">List of indexes</param>
+        /// <param name="withSegments">Fill segments list</param>
         /// 
-        void fillAllIndexes (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+        FTSIndexList allIndexes (
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            FTSIndexList& indexes);
+            bool withSegments);
 
-        /// <summary>
-        /// Returns a list of indexes with fields (segments). 
-        /// </summary>
-        /// 
-        /// <param name="status">Firebird status</param>
-        /// <param name="att">Firebird attachment</param>
-        /// <param name="tra">Firebird transaction</param>
-        /// <param name="sqlDialect">SQL dialect</param>
-        /// <param name="indexes">Map indexes of name with fields (segments)</param>
-        /// 
-        void fillAllIndexesWithFields(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
-            unsigned int sqlDialect,
-            FTSIndexMap& indexes);
 
         /// <summary>
         /// Returns a list of index fields with the given name.
@@ -324,11 +311,11 @@ namespace FTSMetadata
         /// 
         /// <returns>List of index fields (segments)</returns>
         void fillIndexFields(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName,
+            std::string_view indexName,
             FTSIndexSegmentList& segments);
 
 
@@ -345,31 +332,11 @@ namespace FTSMetadata
         /// 
         /// <returns>Returns true if the index field exists, false otherwise</returns>
         bool hasKeyIndexField(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName
-        );
-
-        /// <summary>
-        /// Returns segment with key field.
-        /// </summary>
-        /// 
-        /// <param name="status">Firebird status</param>
-        /// <param name="att">Firebird attachment</param>
-        /// <param name="tra">Firebird transaction</param>
-        /// <param name="sqlDialect">SQL dialect</param>
-        /// <param name="ftsIndexSegment">Key index field</param>
-        /// <param name="indexName">Index name</param>
-        /// 
-        void getKeyIndexField (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
-            unsigned int sqlDialect,
-            const FTSIndexSegmentPtr& keyIndexSegment,
-            const std::string& indexName
+            std::string_view indexName
         );
 
         /// <summary>
@@ -386,12 +353,12 @@ namespace FTSMetadata
         /// <param name="boost">Significance multiplier</param>
         /// <param name="boostNull">Boost null flag</param>
         void addIndexField (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName,
-            const std::string& fieldName,
+            std::string_view indexName,
+            std::string_view fieldName,
             bool key,
             double boost = 1.0,
             bool boostNull = true);
@@ -407,12 +374,12 @@ namespace FTSMetadata
         /// <param name="indexName">Index name</param>
         /// <param name="fieldName">Field name</param>
         void dropIndexField (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName,
-            const std::string& fieldName);
+            std::string_view indexName,
+            std::string_view fieldName);
 
         /// <summary>
         /// Sets the significance multiplier for the index field.
@@ -427,12 +394,12 @@ namespace FTSMetadata
         /// <param name="boost">Significance multiplier</param>
         /// <param name="boostNull">Boost null flag</param>
         void setIndexFieldBoost(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName,
-            const std::string& fieldName,
+            std::string_view indexName,
+            std::string_view fieldName,
             double boost,
             bool boostNull = false);
 
@@ -449,31 +416,32 @@ namespace FTSMetadata
         /// <param name="fieldName">Field name</param>
         /// <returns>Returns true if the field (segment) exists in the index, false otherwise</returns>
         bool hasIndexField (
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& indexName,
-            const std::string& fieldName);
+            std::string_view indexName,
+            std::string_view fieldName);
+
 
         bool hasIndexByAnalyzer(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& analyzerName
+            std::string_view analyzerName
         );
 
         std::unordered_set<std::string> getActiveIndexByAnalyzer(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& analyzerName
+            std::string_view analyzerName
         );
     };
     using FTSIndexRepositoryPtr = std::unique_ptr<FTSIndexRepository>;
 
 }
 
-#endif	// FTS_INDEX_H
+#endif // FTS_INDEX_H

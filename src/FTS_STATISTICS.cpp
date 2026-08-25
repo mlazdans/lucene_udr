@@ -11,22 +11,27 @@
  *  Contributor(s): ______________________________________.
 **/
 
+#include <algorithm>
+#include <memory>
+
 #include "LuceneUdr.h"
+#include "LuceneHeaders.h"
+
+
+#include "CompoundFileReader.h"
+#include "FBUtils.h"
+#include "FieldInfo.h"
+#include "FieldInfos.h"
+#include "FileUtils.h"
 #include "FTSIndex.h"
 #include "FTSUtils.h"
-#include "FBUtils.h"
-#include "LuceneFiles.h"
-#include "LuceneHeaders.h"
-#include "FileUtils.h"
-#include "IndexFileNames.h"
-#include "SegmentInfos.h"
-#include "SegmentInfo.h"
 #include "IndexFileNameFilter.h"
-#include "FieldInfos.h"
-#include "FieldInfo.h"
-#include "CompoundFileReader.h"
-#include <memory>
-#include <algorithm>
+#include "IndexFileNames.h"
+#include "LuceneFiles.h"
+#include "SegmentInfo.h"
+#include "SegmentInfos.h"
+
+
 
 using namespace Firebird;
 using namespace Lucene;
@@ -99,9 +104,9 @@ FB_UDR_BEGIN_PROCEDURE(getIndexStatistics)
     {
     }
 
-    FTSIndexRepositoryPtr indexRepository{nullptr};
+    FTSIndexRepositoryPtr indexRepository;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -139,13 +144,12 @@ FB_UDR_BEGIN_PROCEDURE(getIndexStatistics)
         out->indexSizeNull = true;
 
         try {
-            // check for index existence
-            auto ftsIndex = std::make_unique<FTSIndex>();
-            procedure->indexRepository->getIndex(status, att, tra, sqlDialect, ftsIndex, indexName);
+            // get FTS index metadata
+            auto ftsIndex = procedure->indexRepository->getIndex(status, att, tra, sqlDialect, indexName);
 
             out->analyzerNameNull = false;
-            out->analyzerName.length = static_cast<ISC_USHORT>(ftsIndex->analyzer.length());
-            ftsIndex->analyzer.copy(out->analyzerName.str, out->analyzerName.length);
+            out->analyzerName.length = static_cast<ISC_USHORT>(ftsIndex.analyzer.length());
+            ftsIndex.analyzer.copy(out->analyzerName.str, out->analyzerName.length);
 
             const auto& indexDirectoryPath = ftsDirectoryPath / indexName;
 
@@ -159,18 +163,18 @@ FB_UDR_BEGIN_PROCEDURE(getIndexStatistics)
             // Check if the index directory exists
             if (!fs::is_directory(indexDirectoryPath)) {
                 // index created, but not build
-                ftsIndex->status = "N";
+                ftsIndex.status = "N";
                 out->indexExists = false;
             }
             else {
                 const auto& ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
                 if (!IndexReader::indexExists(ftsIndexDir)) {
                     // index created, but not build
-                    ftsIndex->status = "N";
+                    ftsIndex.status = "N";
                     out->indexExists = false;
                 }
                 else {
-                    const auto& reader = IndexReader::open(ftsIndexDir, true);
+                    const auto reader = IndexReader::open(ftsIndexDir, true);
                     LuceneFileHelper luceneFileHelper(ftsIndexDir);
 
                     out->isOptimizedNull = false;
@@ -189,7 +193,7 @@ FB_UDR_BEGIN_PROCEDURE(getIndexStatistics)
 
                     out->numFieldsNull = false;
                     auto fieldNames = reader->getFieldNames(IndexReader::FIELD_OPTION_ALL);
-                    out->numFields = fieldNames.size();
+                    out->numFields = static_cast<ISC_SHORT>(fieldNames.size());
 
 
                     // calculate index size
@@ -201,8 +205,8 @@ FB_UDR_BEGIN_PROCEDURE(getIndexStatistics)
                 ftsIndexDir->close();
             }
             out->indexStatusNull = false;
-            out->indexStatus.length = static_cast<ISC_USHORT>(ftsIndex->status.length());
-            ftsIndex->status.copy(out->indexStatus.str, out->indexStatus.length);
+            out->indexStatus.length = static_cast<ISC_USHORT>(ftsIndex.status.length());
+            ftsIndex.status.copy(out->indexStatus.str, out->indexStatus.length);
         }
         catch (const LuceneException& e) {
             const std::string error_message = StringUtils::toUTF8(e.getError());
@@ -210,8 +214,8 @@ FB_UDR_BEGIN_PROCEDURE(getIndexStatistics)
         }
     }
 
-    AutoRelease<IAttachment> att{nullptr};
-    AutoRelease<ITransaction> tra{nullptr};
+    AutoRelease<IAttachment> att;
+    AutoRelease<ITransaction> tra;
     bool fetched = false;
 
     FB_UDR_FETCH_PROCEDURE
@@ -249,9 +253,9 @@ FB_UDR_BEGIN_PROCEDURE(getIndexFields)
     {
     }
 
-    FTSIndexRepositoryPtr indexRepository{nullptr};
+    FTSIndexRepositoryPtr indexRepository;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -266,7 +270,7 @@ FB_UDR_BEGIN_PROCEDURE(getIndexFields)
         }
         const std::string indexName(in->index_name.str, in->index_name.length);
 
-        const auto& ftsDirectoryPath = getFtsDirectory(status, context);
+        const auto ftsDirectoryPath = getFtsDirectory(status, context);
         // check if there is a directory for full-text indexes
         if (!fs::is_directory(ftsDirectoryPath)) {
             throwException(status, R"(Fts directory "%s" not exists)", ftsDirectoryPath.u8string().c_str());
@@ -286,24 +290,24 @@ FB_UDR_BEGIN_PROCEDURE(getIndexFields)
             }
 
 
-            const auto& indexDirectoryPath = ftsDirectoryPath / indexName;
+            const auto indexDirectoryPath = ftsDirectoryPath / indexName;
 
             // Check if the index directory exists
             if (!fs::is_directory(indexDirectoryPath)) {
                 throwException(status, R"(Index directory "%s" not exists.)", indexDirectoryPath.u8string().c_str());
             }
 
-            const auto& ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
+            const auto ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
             if (!IndexReader::indexExists(ftsIndexDir)) {
                 throwException(status, R"(Index "%s" not build.)", indexName.c_str());
             }
                 
-            const auto& reader = IndexReader::open(ftsIndexDir, true);
+            const auto reader = IndexReader::open(ftsIndexDir, true);
 
             fieldNames = reader->getFieldNames(IndexReader::FIELD_OPTION_ALL);
             it = fieldNames.begin();
 
-            reader->close();	
+            reader->close();
             ftsIndexDir->close();
 
         }
@@ -363,9 +367,9 @@ FB_UDR_BEGIN_PROCEDURE(getIndexFiles)
     {
     }
 
-    FTSIndexRepositoryPtr indexRepository{nullptr};
+    FTSIndexRepositoryPtr indexRepository;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -402,15 +406,15 @@ FB_UDR_BEGIN_PROCEDURE(getIndexFiles)
             }
 
 
-            const auto& indexDirectoryPath = ftsDirectoryPath / indexName;
+            const auto indexDirectoryPath = ftsDirectoryPath / indexName;
 
             // Check if the index directory exists
             if (!fs::is_directory(indexDirectoryPath)) {
                 throwException(status, R"(Index directory "%s" not exists.)", indexDirectoryPath.u8string().c_str());
             }
 
-            const auto& unicodeIndexDir = indexDirectoryPath.wstring();
-            const auto& ftsIndexDir = FSDirectory::open(unicodeIndexDir);
+            const auto unicodeIndexDir = indexDirectoryPath.wstring();
+            const auto ftsIndexDir = FSDirectory::open(unicodeIndexDir);
             luceneFileHelper.setDirectory(ftsIndexDir);
 
             auto allFileNames = ftsIndexDir->listAll();
@@ -495,9 +499,9 @@ FB_UDR_BEGIN_PROCEDURE(getIndexSegments)
     {
     }
 
-    FTSIndexRepositoryPtr indexRepository{nullptr};
+    FTSIndexRepositoryPtr indexRepository;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -537,14 +541,14 @@ FB_UDR_BEGIN_PROCEDURE(getIndexSegments)
                 throwException(status, R"(Index "%s" not exists)", indexName.c_str());
             }
 
-            const auto& indexDirectoryPath = ftsDirectoryPath / indexName;
+            const auto indexDirectoryPath = ftsDirectoryPath / indexName;
 
             // Check if the index directory exists
             if (!fs::is_directory(indexDirectoryPath)) {
                 throwException(status, R"(Index directory "%s" not exists.)", indexDirectoryPath.u8string().c_str());
             }
             
-            const auto& ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
+            auto ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
             segmentInfos = newLucene<SegmentInfos>();
             segmentInfos->read(ftsIndexDir);
             
@@ -556,8 +560,8 @@ FB_UDR_BEGIN_PROCEDURE(getIndexSegments)
         }
     }
 
-    AutoRelease<IAttachment> att{nullptr};
-    AutoRelease<ITransaction> tra{nullptr};
+    AutoRelease<IAttachment> att;
+    AutoRelease<ITransaction> tra;
     SegmentInfosPtr segmentInfos;
     int32_t segNo = 0;
 
@@ -647,9 +651,9 @@ FB_UDR_BEGIN_PROCEDURE(getFieldInfos)
     {
     }
 
-    FTSIndexRepositoryPtr indexRepository{nullptr};
+    FTSIndexRepositoryPtr indexRepository;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -671,7 +675,7 @@ FB_UDR_BEGIN_PROCEDURE(getFieldInfos)
             unicodeSegmentName = StringUtils::toUnicode(segmentName);
         }
 
-        const auto& ftsDirectoryPath = getFtsDirectory(status, context);
+        const auto ftsDirectoryPath = getFtsDirectory(status, context);
         // check if there is a directory for full-text indexes
         if (!fs::is_directory(ftsDirectoryPath)) {
             throwException(status, R"(Fts directory "%s" not exists)", ftsDirectoryPath.u8string().c_str());
@@ -683,22 +687,21 @@ FB_UDR_BEGIN_PROCEDURE(getFieldInfos)
         const unsigned int sqlDialect = getSqlDialect(status, att);
 
 
-
         try {
             // check for index existence
             if (!procedure->indexRepository->hasIndex(status, att, tra, sqlDialect, indexName)) {
                 throwException(status, R"(Index "%s" not exists)", indexName.c_str());
             }
 
-            const auto& indexDirectoryPath = ftsDirectoryPath / indexName;
+            const auto indexDirectoryPath = ftsDirectoryPath / indexName;
 
             // Check if the index directory exists
             if (!fs::is_directory(indexDirectoryPath)) {
                 throwException(status, R"(Index directory "%s" not exists.)", indexDirectoryPath.u8string().c_str());
             }
 
-            const auto& ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
-            const auto& segmentInfos = newLucene<SegmentInfos>();
+            auto ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
+            auto segmentInfos = newLucene<SegmentInfos>();
             segmentInfos->read(ftsIndexDir);
         
             SegmentInfoPtr segmentInfo = nullptr;
@@ -733,8 +736,8 @@ FB_UDR_BEGIN_PROCEDURE(getFieldInfos)
         }
     }
 
-    AutoRelease<IAttachment> att{nullptr};
-    AutoRelease<ITransaction> tra{nullptr};
+    AutoRelease<IAttachment> att;
+    AutoRelease<ITransaction> tra;
     FieldInfosPtr fieldInfos;
     int32_t fieldNo = 0;
 
@@ -743,7 +746,7 @@ FB_UDR_BEGIN_PROCEDURE(getFieldInfos)
         if (fieldNo >= fieldInfos->size()) {
             return false;
         }
-        const auto fieldInfo = fieldInfos->fieldInfo(fieldNo);
+        auto fieldInfo = fieldInfos->fieldInfo(fieldNo);
 
         const std::string fieldName = StringUtils::toUTF8(fieldInfo->name);
         out->fieldNameNull = false;
@@ -777,4 +780,116 @@ FB_UDR_BEGIN_PROCEDURE(getFieldInfos)
         fieldNo++;
         return true;
     }
+FB_UDR_END_PROCEDURE
+
+/***
+PROCEDURE FTS$INDEX_TERMS (
+    FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+)
+RETURNS (
+    FTS$FIELD_NAME  VARCHAR(63) CHARACTER SET UTF8,
+    FTS$TERM        VARCHAR(8191) CHARACTER SET UTF8,
+    FTS$DOC_FREQ    INTEGER
+)
+EXTERNAL NAME 'luceneudr!indexTerms'
+ENGINE UDR;
+***/
+FB_UDR_BEGIN_PROCEDURE(indexTerms)
+    FB_UDR_MESSAGE(InMessage,
+        (FB_INTL_VARCHAR(252, CS_UTF8), index_name)
+    );
+
+    FB_UDR_MESSAGE(OutMessage,
+        (FB_INTL_VARCHAR(252, CS_UTF8), field_name)
+        (FB_INTL_VARCHAR(8191 * 4, CS_UTF8), term)
+        (FB_INTEGER, doc_freq)
+    );
+
+    FB_UDR_CONSTRUCTOR
+        , indexRepository(std::make_unique<FTSIndexRepository>(context->getMaster()))
+    {
+    }
+
+    FTSIndexRepositoryPtr indexRepository;
+
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
+        char* name, unsigned nameSize)
+    {
+        // Forced internal request encoding to UTF8
+        memset(name, 0, nameSize);
+        memcpy(name, INTERNAL_UDR_CHARSET, std::size(INTERNAL_UDR_CHARSET));
+    }
+
+    FB_UDR_EXECUTE_PROCEDURE
+    {
+        AutoRelease<IAttachment> att(context->getAttachment(status));
+        AutoRelease<ITransaction> tra(context->getTransaction(status));
+
+        if (in->index_nameNull) {
+            throwException(status, "Index name can not be NULL");
+        }
+        const std::string indexName(in->index_name.str, in->index_name.length);
+
+        const auto ftsDirectoryPath = getFtsDirectory(status, context);
+        // check if there is a directory for full-text indexes
+        if (!fs::is_directory(ftsDirectoryPath)) {
+            throwException(status, R"(Fts directory "%s" not exists)", ftsDirectoryPath.u8string().c_str());
+        }
+
+        const unsigned int sqlDialect = getSqlDialect(status, att);
+
+        try {
+            // get FTS index metadata
+            auto ftsIndex = procedure->indexRepository->getIndex(status, att, tra, sqlDialect, indexName);
+            // Check if the index directory exists. 
+            const auto indexDirectoryPath = ftsDirectoryPath / indexName;
+            if (!fs::is_directory(indexDirectoryPath)) {
+                throwException(status, R"(Index directory "%s" not exists.)", indexDirectoryPath.u8string().c_str());
+            }
+
+            auto ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
+            auto reader = IndexReader::open(ftsIndexDir, true);
+            termIt = reader->terms();
+            out->field_nameNull = true;
+            out->termNull = true;
+            out->doc_freqNull = true;
+        }
+        catch (const LuceneException& e) {
+            const std::string error_message = StringUtils::toUTF8(e.getError());
+            throwException(status, error_message.c_str());
+        }
+    }
+
+    TermEnumPtr termIt;
+
+    FB_UDR_FETCH_PROCEDURE
+    {
+        if (!termIt->next()) {
+            termIt->close();
+            return false;
+        }
+
+        auto term = termIt->term();
+        auto wFieldName = term->field();
+        auto fieldName = StringUtils::toUTF8(wFieldName);
+        auto wText = term->text();
+        if (wText.length() > 8191) {
+            throwException(status, "Term size exceeds 8191 characters");
+        }
+        auto text = StringUtils::toUTF8(wText);
+
+        out->field_nameNull = false;
+        out->field_name.length = static_cast<ISC_USHORT>(fieldName.size());
+        fieldName.copy(out->field_name.str, out->field_name.length);
+
+        out->termNull = false;
+        out->term.length = static_cast<ISC_USHORT>(text.size());
+        text.copy(out->term.str, out->term.length);
+
+        out->doc_freqNull = false;
+        out->doc_freq = static_cast<ISC_LONG>(termIt->docFreq());
+
+        return true;
+    }
+
 FB_UDR_END_PROCEDURE

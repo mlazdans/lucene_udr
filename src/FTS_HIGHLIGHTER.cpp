@@ -11,15 +11,15 @@
  *  Contributor(s): ______________________________________.
 **/
 
-#include "LuceneUdr.h"
-#include "FTSIndex.h"
-#include "FBUtils.h"
-#include "LuceneHeaders.h"
 #include "Analyzers.h"
-#include "LuceneAnalyzerFactory.h"
-#include "SimpleHTMLFormatter.h"
-#include "QueryScorer.h"
+#include "FBUtils.h"
+#include "FTSIndex.h"
 #include "Highlighter.h"
+#include "LuceneAnalyzerFactory.h"
+#include "LuceneHeaders.h"
+#include "LuceneUdr.h"
+#include "QueryScorer.h"
+#include "SimpleHTMLFormatter.h"
 #include "SimpleSpanFragmenter.h"
 
 using namespace Firebird;
@@ -63,7 +63,7 @@ FB_UDR_BEGIN_FUNCTION(bestFragementHighligh)
 
     std::unique_ptr<AnalyzerRepository> analyzers;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -77,14 +77,11 @@ FB_UDR_BEGIN_FUNCTION(bestFragementHighligh)
         AutoRelease<ITransaction> tra(context->getTransaction(status));
 
         out->fragmentNull = true;
-
-        std::string text;
-        if (!in->textNull) {
-            AutoRelease<IBlob> blob(att->openBlob(status, tra, &in->text, 0, nullptr));
-            text = BlobUtils::getString(status, blob);
-            blob->close(status);
-            blob.release();
+        if (in->textNull) {
+            return;
         }
+
+        std::string text = readStringFromBlob(status, att, tra, &in->text);
 
         std::string queryStr;
         if (!in->queryNull) {
@@ -124,14 +121,14 @@ FB_UDR_BEGIN_FUNCTION(bestFragementHighligh)
         try {
             const unsigned int sqlDialect = getSqlDialect(status, att);
 
-            const auto& analyzer = analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
-            const auto& parser = newLucene<QueryParser>(LuceneVersion::LUCENE_CURRENT, StringUtils::toUnicode(fieldName), analyzer);
+            auto analyzer = analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
+            auto parser = newLucene<QueryParser>(LuceneVersion::LUCENE_CURRENT, StringUtils::toUnicode(fieldName), analyzer);
             parser->setAllowLeadingWildcard(true);
-            const auto& query = parser->parse(StringUtils::toUnicode(queryStr));
-            const auto& formatter = newLucene<SimpleHTMLFormatter>(StringUtils::toUnicode(leftTag), StringUtils::toUnicode(rightTag));
-            const auto& scorer = newLucene<QueryScorer>(query);
-            const auto& highlighter = newLucene<Highlighter>(formatter, scorer);
-            const auto& fragmenter = newLucene<SimpleSpanFragmenter>(scorer, fragmentSize);
+            auto query = parser->parse(StringUtils::toUnicode(queryStr));
+            auto formatter = newLucene<SimpleHTMLFormatter>(StringUtils::toUnicode(leftTag), StringUtils::toUnicode(rightTag));
+            auto scorer = newLucene<QueryScorer>(query);
+            auto highlighter = newLucene<Highlighter>(formatter, scorer);
+            auto fragmenter = newLucene<SimpleSpanFragmenter>(scorer, fragmentSize);
             highlighter->setTextFragmenter(fragmenter);
             const auto content = highlighter->getBestFragment(analyzer, StringUtils::toUnicode(fieldName), StringUtils::toUnicode(text));
 
@@ -192,7 +189,7 @@ FB_UDR_BEGIN_PROCEDURE(bestFragementsHighligh)
 
     std::unique_ptr<AnalyzerRepository> analyzers;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -207,13 +204,7 @@ FB_UDR_BEGIN_PROCEDURE(bestFragementsHighligh)
 
         out->fragmentNull = true;
 
-        std::string text;
-        if (!in->textNull) {
-            AutoRelease<IBlob> blob(att->openBlob(status, tra, &in->text, 0, nullptr));
-            text = BlobUtils::getString(status, blob);
-            blob->close(status);
-            blob.release();
-        }
+        std::string text = readStringFromBlob(status, att, tra, !in->textNull ? &in->text : nullptr);
 
         std::string queryStr;
         if (!in->queryNull) {
@@ -255,14 +246,14 @@ FB_UDR_BEGIN_PROCEDURE(bestFragementsHighligh)
         try {
             const unsigned int sqlDialect = getSqlDialect(status, att);
 
-            const auto& analyzer = procedure->analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
-            const auto& parser = newLucene<QueryParser>(LuceneVersion::LUCENE_CURRENT, StringUtils::toUnicode(fieldName), analyzer);
+            auto analyzer = procedure->analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
+            auto parser = newLucene<QueryParser>(LuceneVersion::LUCENE_CURRENT, StringUtils::toUnicode(fieldName), analyzer);
             parser->setAllowLeadingWildcard(true);
-            const auto& query = parser->parse(StringUtils::toUnicode(queryStr));
-            const auto& formatter = newLucene<SimpleHTMLFormatter>(StringUtils::toUnicode(leftTag), StringUtils::toUnicode(rightTag));
-            const auto& scorer = newLucene<QueryScorer>(query);
-            const auto& highlighter = newLucene<Highlighter>(formatter, scorer);
-            const auto& fragmenter = newLucene<SimpleSpanFragmenter>(scorer, fragmentSize);
+            auto query = parser->parse(StringUtils::toUnicode(queryStr));
+            auto formatter = newLucene<SimpleHTMLFormatter>(StringUtils::toUnicode(leftTag), StringUtils::toUnicode(rightTag));
+            auto scorer = newLucene<QueryScorer>(query);
+            auto highlighter = newLucene<Highlighter>(formatter, scorer);
+            auto fragmenter = newLucene<SimpleSpanFragmenter>(scorer, fragmentSize);
             highlighter->setTextFragmenter(fragmenter);
 
             fragments = highlighter->getBestFragments(analyzer, StringUtils::toUnicode(fieldName), StringUtils::toUnicode(text), maxNumFragments);
@@ -274,8 +265,8 @@ FB_UDR_BEGIN_PROCEDURE(bestFragementsHighligh)
         }
     }
 
-    AutoRelease<IAttachment> att{nullptr};
-    AutoRelease<ITransaction> tra{nullptr};
+    AutoRelease<IAttachment> att;
+    AutoRelease<ITransaction> tra;
     Collection<String> fragments;
     Collection<String>::iterator it;
 

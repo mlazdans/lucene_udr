@@ -14,22 +14,28 @@
  *  Contributor(s): ______________________________________.
 **/
 
-#include "LuceneUdr.h"
 #include <string>
+#include <string_view>
+#include <vector>
+
+#include "LuceneUdr.h"
+
 
 
 namespace LuceneUDR
 {
 
-    class BlobUtils final {
-    public:
-        static std::string getString(Firebird::ThrowStatusWrapper* status, Firebird::IBlob* blob);
+    std::vector<unsigned char> readBinaryFromBlob(Firebird::ThrowStatusWrapper* status, Firebird::IAttachment* att,
+        Firebird::ITransaction* tra, ISC_QUAD* blobIdPtr);
 
-        static void setString(Firebird::ThrowStatusWrapper* status, Firebird::IBlob* blob, const std::string& str);
-    };
+    std::string readStringFromBlob(Firebird::ThrowStatusWrapper* status, Firebird::IAttachment* att, 
+        Firebird::ITransaction* tra, ISC_QUAD* blobIdPtr);
+
+    void writeStringToBlob(Firebird::ThrowStatusWrapper* status, Firebird::IAttachment* att, 
+        Firebird::ITransaction* tra, ISC_QUAD* blobIdPtr, std::string_view str);
 
 
-    const unsigned int getSqlDialect(Firebird::ThrowStatusWrapper* status, Firebird::IAttachment* att);
+    unsigned int getSqlDialect(Firebird::ThrowStatusWrapper* status, Firebird::IAttachment* att);
 
     /// <summary>
     /// Escapes the name of the metadata object depending on the SQL dialect. 
@@ -55,7 +61,42 @@ namespace LuceneUDR
     [[noreturn]]
     void throwException(Firebird::ThrowStatusWrapper* const status, const char* message, ...);
 
+    struct IscRandomStatus {
+    public:
+        explicit IscRandomStatus(const std::string& message)
+            : statusVector{ isc_arg_gds, isc_random,
+                isc_arg_string, (ISC_STATUS)message.c_str(),
+                isc_arg_end }
+        {
+        }
+
+        explicit IscRandomStatus(const char* message)
+            : statusVector{ isc_arg_gds, isc_random,
+                isc_arg_string, (ISC_STATUS)message,
+                isc_arg_end }
+        {
+        }
+
+        explicit IscRandomStatus(const std::exception& e)
+            : statusVector{ isc_arg_gds, isc_random,
+                isc_arg_string, (ISC_STATUS)e.what(),
+                isc_arg_end }
+        {
+        }
+
+        operator const ISC_STATUS* () const { return statusVector; }
+
+        static IscRandomStatus createFmtStatus(const char* message, ...);
+
+    private:
+        ISC_STATUS statusVector[5] = {};
+    };
+
     Firebird::IMessageMetadata* prepareTextMetaData(Firebird::ThrowStatusWrapper* status, Firebird::IMessageMetadata* meta);
+
+    std::string binary_to_hex(const unsigned char* data, size_t size);
+
+    std::vector<unsigned char> hex_to_binary(std::string_view input);
 }
 
-#endif	// FB_BLOB_UTILS_H
+#endif // FB_BLOB_UTILS_H

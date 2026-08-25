@@ -11,12 +11,12 @@
  *  Contributor(s): ______________________________________.
 **/
 
-#include "LuceneUdr.h"
-#include "FTSTrigger.h"
-#include "FBUtils.h"
-#include "LuceneHeaders.h"
 #include <memory>
-#include <algorithm>
+
+#include "FBUtils.h"
+#include "FTSTrigger.h"
+#include "LuceneHeaders.h"
+#include "LuceneUdr.h"
 
 using namespace Firebird;
 using namespace Lucene;
@@ -62,9 +62,9 @@ FB_UDR_BEGIN_PROCEDURE(ftsMakeTrigger)
     {
     }
 
-    std::unique_ptr<FTSTriggerHelper> triggerHelper{nullptr};
+    std::unique_ptr<FTSTriggerHelper> triggerHelper;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -79,9 +79,9 @@ FB_UDR_BEGIN_PROCEDURE(ftsMakeTrigger)
         }
         std::string relationName(in->relationName.str, in->relationName.length);
 
-        const bool multiActionFlag = in->multiAction;
+        bool multiActionFlag = in->multiAction;
 
-        const auto triggerPosition = in->position;
+        auto triggerPosition = in->position;
 
         att.reset(context->getAttachment(status));
         tra.reset(context->getTransaction(status));
@@ -90,12 +90,13 @@ FB_UDR_BEGIN_PROCEDURE(ftsMakeTrigger)
 
 
         try {
-            procedure->triggerHelper->makeTriggerSourceByRelation(status, att, tra, sqlDialect, relationName, multiActionFlag, triggerPosition, triggers);
+            triggers = procedure->triggerHelper->makeTriggerSourceByRelation(status, att, tra, sqlDialect, relationName, multiActionFlag, triggerPosition);
             it = triggers.cbegin();
         }
         catch (LuceneException& e) {
             std::string error_message = StringUtils::toUTF8(e.getError());
-            throwException(status, error_message.c_str());
+            IscRandomStatus statusVector(error_message);
+            throw FbException(status, statusVector);
         }
     }
 
@@ -108,48 +109,32 @@ FB_UDR_BEGIN_PROCEDURE(ftsMakeTrigger)
 
     FB_UDR_FETCH_PROCEDURE
     {
-        if (it == triggers.end()) {
+        if (it == triggers.cend()) {
             return false;
         }
 
-        const auto& trigger = *it;
+        auto&& trigger = *it;
 
         out->triggerNameNull = false;
-        out->triggerName.length = static_cast<ISC_SHORT>(trigger->triggerName.length());
-        trigger->triggerName.copy(out->triggerName.str, out->triggerName.length);
+        out->triggerName.length = static_cast<ISC_USHORT>(trigger.triggerName.length());
+        trigger.triggerName.copy(out->triggerName.str, out->triggerName.length);
 
         out->relationNameNull = false;
-        out->relationName.length = static_cast<ISC_SHORT>(trigger->relationName.length());
-        trigger->relationName.copy(out->relationName.str, out->relationName.length);
+        out->relationName.length = static_cast<ISC_USHORT>(trigger.relationName.length());
+        trigger.relationName.copy(out->relationName.str, out->relationName.length);
 
         out->eventsNull = false;
-        out->events.length = static_cast<ISC_SHORT>(trigger->triggerEvents.length());
-        trigger->triggerEvents.copy(out->events.str, out->events.length);
+        out->events.length = static_cast<ISC_USHORT>(trigger.triggerEvents.length());
+        trigger.triggerEvents.copy(out->events.str, out->events.length);
 
         out->positionNull = false;
-        out->position = trigger->position;
-
-        const unsigned char bpb[] = {
-            isc_bpb_version1,
-            isc_bpb_type, 1, isc_bpb_type_stream,
-            isc_bpb_storage, 1, isc_bpb_storage_temp
-        };
+        out->position = trigger.position;
 
         out->triggerSourceNull = false;
-        {
-            AutoRelease<IBlob> blob(att->createBlob(status, tra, &out->triggerSource, sizeof(bpb), bpb));
-            BlobUtils::setString(status, blob, trigger->triggerSource);
-            blob->close(status);
-            blob.release();
-        }
+        writeStringToBlob(status, att, tra, &out->triggerSource, trigger.triggerSource);
 
         out->triggerScriptNull = false;
-        {
-            AutoRelease<IBlob> blob(att->createBlob(status, tra, &out->triggerScript, sizeof(bpb), bpb));
-            BlobUtils::setString(status, blob, trigger->getScript(sqlDialect));
-            blob->close(status);
-            blob.release();
-        }
+        writeStringToBlob(status, att, tra, &out->triggerScript, trigger.getScript(sqlDialect));
 
         ++it;
         return true;

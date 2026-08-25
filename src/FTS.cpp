@@ -11,59 +11,50 @@
  *  Contributor(s): ______________________________________.
 **/
 
-#include "LuceneUdr.h"
+#include <memory>
+#include <string>
+#include <unordered_map>
+
+#include "Analyzers.h"
+#include "FBUtils.h"
+#include "FTSHelper.h"
 #include "FTSIndex.h"
 #include "FTSUtils.h"
-#include "Relations.h"
-#include "FBUtils.h"
-#include "FBFieldInfo.h"
-#include "EncodeUtils.h"
-#include "LuceneHeaders.h"
-#include "FileUtils.h"
-#include "TermAttribute.h"
-#include "Analyzers.h"
 #include "LuceneAnalyzerFactory.h"
-#include "Utils.h"
-#include <string>
-#include <sstream>
-#include <memory>
-#include <algorithm>
+#include "LuceneUdr.h"
+#include "LuceneHeaders.h"
+#include "Relations.h"
+#include "TermAttribute.h"
+
+
 
 using namespace Firebird;
 using namespace Lucene;
 using namespace FTSMetadata;
 using namespace LuceneUDR;
 
-const std::string queryEscape(const std::string& query)
-{
-    std::stringstream ss;
-    for (const auto ch : query) {
-        switch (ch) {
-        case '+':
-        case '-':
-        case '!':
-        case '^':
-        case '"':
-        case '~':
-        case '*':
-        case '?':
-        case ':':
-        case '\\':
-        case '&':
-        case '|':
-        case '(':
-        case ')':
-        case '[':
-        case ']':
-        case '{':
-        case '}':
-            ss << '\\' << ch;
-            break;
-        default:
-            ss << ch;
+namespace {
+
+    constexpr std::string_view SPECIAL_CHARS = "+-!^\"~*?:\\&|()[]{}";
+
+    std::string queryEscape(std::string_view query)
+    {
+        std::string s;
+        s.reserve(query.size());
+
+        auto p = query.find_first_of(SPECIAL_CHARS);
+        while (p != std::string::npos) {
+            s += query.substr(0, p);
+            s += '\\';
+            s += query.substr(p, 1);
+            query.remove_prefix(p + 1);
+
+            p = query.find_first_of(SPECIAL_CHARS);
         }
+        s += query;
+
+        return s;
     }
-    return ss.str();
 }
 
 /***
@@ -86,10 +77,9 @@ FB_UDR_BEGIN_FUNCTION(ftsEscapeQuery)
     FB_UDR_EXECUTE_FUNCTION
     {
         if (!in->queryNull) {
-            std::string queryStr;
-            queryStr.assign(in->query.str, in->query.length);
+            std::string_view queryStr(in->query.str, in->query.length);
 
-            const auto escapedQuery = queryEscape(queryStr);
+            const std::string escapedQuery = queryEscape(queryStr);
 
             out->queryNull = false;
             out->query.length = static_cast<ISC_USHORT>(escapedQuery.length());
@@ -140,13 +130,17 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
 
     FB_UDR_CONSTRUCTOR
         , indexRepository(std::make_unique<FTSIndexRepository>(context->getMaster()))
+        , analyzerRepository(std::make_unique<AnalyzerRepository>(context->getMaster()))
+        , relationHelper(std::make_unique<RelationHelper>(context->getMaster()))
     {
     }
 
-    FTSIndexRepositoryPtr indexRepository{nullptr};
+    FTSIndexRepositoryPtr indexRepository;
+    std::unique_ptr<AnalyzerRepository> analyzerRepository;
+    RelationHelperPtr relationHelper;
 
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -159,7 +153,7 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
         if (in->indexNameNull) {
             throwException(status, "Index name can not be NULL");
         }
-        const std::string indexName(in->indexName.str, in->indexName.length);
+        std::string_view indexName(in->indexName.str, in->indexName.length);
 
         std::string queryStr;
         if (!in->queryNull) {
@@ -172,63 +166,66 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
             explainFlag = in->explain;
         }
 
-        const auto& ftsDirectoryPath = getFtsDirectory(status, context);
+        const auto ftsDirectoryPath = getFtsDirectory(status, context);
 
         att.reset(context->getAttachment(status));
         tra.reset(context->getTransaction(status));
 
-        const unsigned int sqlDialect = getSqlDialect(status, att);
+        unsigned int sqlDialect = getSqlDialect(status, att);
 
-        const auto& ftsIndex = std::make_unique<FTSIndex>();
-        procedure->indexRepository->getIndex(status, att, tra, sqlDialect, ftsIndex, indexName, true);
+        auto ftsIndex = procedure->indexRepository->getIndex(status, att, tra, sqlDialect, indexName, true);
 
         // check if directory exists for index
-        const auto& indexDirectoryPath = ftsDirectoryPath / indexName;
-        if (ftsIndex->status == "N" || !fs::is_directory(indexDirectoryPath)) {
-            throwException(status, R"(Index "%s" exists, but is not build. Please rebuild index.)", indexName.c_str());
+        const auto indexDirectoryPath = ftsDirectoryPath / indexName;
+        if (ftsIndex.status == "N" || !fs::is_directory(indexDirectoryPath)) {
+            std::string sIndexName(indexName);
+            throwException(status, R"(Index "%s" exists, but is not build. Please rebuild index.)", sIndexName.c_str());
         }
 
         try {
-            const auto& ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
+            auto ftsIndexDir = FSDirectory::open(indexDirectoryPath.wstring());
             if (!IndexReader::indexExists(ftsIndexDir)) {
-                throwException(status, R"(Index "%s" exists, but is not build. Please rebuild index.)", indexName.c_str());
+                std::string sIndexName(indexName);
+                throwException(status, R"(Index "%s" exists, but is not build. Please rebuild index.)", sIndexName.c_str());
             }
 
-            const auto analyzers = procedure->indexRepository->getAnalyzerRepository();
-            AnalyzerPtr analyzer = analyzers->createAnalyzer(status, att, tra, sqlDialect, ftsIndex->analyzer);
+            AnalyzerPtr analyzer = procedure->analyzerRepository->createAnalyzer(status, att, tra, sqlDialect, ftsIndex.analyzer);
             searcher = newLucene<IndexSearcher>(ftsIndexDir, true);
 
             std::string keyFieldName;
             auto fields = Collection<String>::newInstance();
-            for (const auto& segment : ftsIndex->segments) {
-                if (!segment->key) {
-                    fields.add(StringUtils::toUnicode(segment->fieldName));
+            for (const auto& segment : ftsIndex.segments) {
+                if (!segment.isKey()) {
+                    fields.add(StringUtils::toUnicode(segment.fieldName()));
                 }
                 else {
-                    keyFieldName = segment->fieldName;
-                    unicodeKeyFieldName = StringUtils::toUnicode(keyFieldName);
+                    keyFieldName = segment.fieldName();
                 }
             }
+            if (keyFieldName.empty()) {
+                std::string sIndexName(indexName);
+                throwException(status, R"(Not found key field in FTS index "%s".)", sIndexName.c_str());
+            }
+            unicodeKeyFieldName = StringUtils::toUnicode(keyFieldName);
 
-            keyFieldInfo = std::make_unique<RelationFieldInfo>();
-            if (keyFieldName != "RDB$DB_KEY") {
-                procedure->indexRepository->getRelationHelper()->getField(status, att, tra, sqlDialect, keyFieldInfo, ftsIndex->relationName, keyFieldName);
+            keyFieldInfo = procedure->relationHelper->getField(status, att, tra, sqlDialect, ftsIndex.relationName, keyFieldName);
+
+            if (fields.size() == 1) {
+                QueryParserPtr parser = newLucene<QueryParser>(LuceneVersion::LUCENE_CURRENT, fields[0], analyzer);
+                query = parser->parse(StringUtils::toUnicode(queryStr));
             }
             else {
-                keyFieldInfo->initDB_KEYField(ftsIndex->relationName);
+                MultiFieldQueryParserPtr  parser = newLucene<MultiFieldQueryParser>(LuceneVersion::LUCENE_CURRENT, fields, analyzer);
+                parser->setDefaultOperator(QueryParser::OR_OPERATOR);
+                query = parser->parse(StringUtils::toUnicode(queryStr));
             }
-
-            MultiFieldQueryParserPtr  parser = newLucene<MultiFieldQueryParser>(LuceneVersion::LUCENE_CURRENT, fields, analyzer);
-            parser->setAllowLeadingWildcard(true);
-            parser->setDefaultOperator(QueryParser::OR_OPERATOR);
-            query = parser->parse(StringUtils::toUnicode(queryStr));
             docs = searcher->search(query, limit);
 
             it = docs->scoreDocs.begin();
 
             out->relationNameNull = false;
-            out->relationName.length = static_cast<ISC_USHORT>(ftsIndex->relationName.length());
-            ftsIndex->relationName.copy(out->relationName.str, out->relationName.length);
+            out->relationName.length = static_cast<ISC_USHORT>(ftsIndex.relationName.length());
+            ftsIndex.relationName.copy(out->relationName.str, out->relationName.length);
 
             out->keyFieldNameNull = false;
             out->keyFieldName.length = static_cast<ISC_USHORT>(keyFieldName.length());
@@ -246,13 +243,13 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
     }
 
     bool explainFlag = false;
-    AutoRelease<IAttachment> att{ nullptr };
-    AutoRelease<ITransaction> tra{ nullptr };
-    RelationFieldInfoPtr keyFieldInfo{ nullptr };
-    String unicodeKeyFieldName = L"";
-    SearcherPtr searcher{ nullptr };
-    QueryPtr query{ nullptr };
-    TopDocsPtr docs{ nullptr };
+    AutoRelease<IAttachment> att;
+    AutoRelease<ITransaction> tra;
+    RelationFieldInfo keyFieldInfo;
+    String unicodeKeyFieldName;
+    SearcherPtr searcher;
+    QueryPtr query;
+    TopDocsPtr docs;
     Collection<ScoreDocPtr>::iterator it;
 
     FB_UDR_FETCH_PROCEDURE
@@ -266,26 +263,32 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
 
             try {
                 const std::string keyValue = StringUtils::toUTF8(doc->get(unicodeKeyFieldName));
-                if (unicodeKeyFieldName == L"RDB$DB_KEY") {
+                if (keyFieldInfo.isDbKey()) {
                     // In the Lucene index, the string is stored in hexadecimal form, so let's convert it back to binary format.
-                    const std::string dbKey = hex_to_string(keyValue);
+                    auto dbKey = hex_to_binary(keyValue);
+                    std::string_view svDbKey(reinterpret_cast<char*>(dbKey.data()), dbKey.size());
                     out->dbKeyNull = false;
-                    out->dbKey.length = static_cast<ISC_USHORT>(dbKey.length());
-                    dbKey.copy(out->dbKey.str, out->dbKey.length);
+                    out->dbKey.length = static_cast<ISC_USHORT>(svDbKey.size());
+                    svDbKey.copy(out->dbKey.str, out->dbKey.length);
                 }
-                else if (keyFieldInfo->isBinary()) {
+                else if (keyFieldInfo.isBinary()) {
                     // In the Lucene index, the string is stored in hexadecimal form, so let's convert it back to binary format.
-                    const std::string uuid = hex_to_string(keyValue);
+                    auto uuid = hex_to_binary(keyValue);
+                    std::string_view svUuid(reinterpret_cast<char*>(uuid.data()), uuid.size());
                     out->uuidNull = false;
-                    out->uuid.length = static_cast<ISC_USHORT>(uuid.length());
-                    uuid.copy(out->uuid.str, out->uuid.length);
+                    out->uuid.length = static_cast<ISC_USHORT>(svUuid.size());
+                    svUuid.copy(out->uuid.str, out->uuid.length);
                 }
-                else if (keyFieldInfo->isInt()) {
+                else if (keyFieldInfo.isInt()) {
                     out->idNull = false;
                     out->id = std::stoll(keyValue);
                 }
+                else {
+                    std::string sMessage = "FTS index does not know the key type.";
+                    throwException(status, sMessage.c_str());
+                }
             }
-            catch (std::invalid_argument& e) {
+            catch (const std::invalid_argument& e) {
                 throwException(status, e.what());
             }
 
@@ -293,19 +296,10 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
             out->score = scoreDoc->score;
 
             if (explainFlag) {
-                const unsigned char bpb[] = {
-                    isc_bpb_version1,
-                    isc_bpb_type, 1, isc_bpb_type_stream,
-                    isc_bpb_storage, 1, isc_bpb_storage_temp
-                };
-
-                out->explanationNull = false;
-                const auto explanation = searcher->explain(query, scoreDoc->doc);
+                auto explanation = searcher->explain(query, scoreDoc->doc);
                 const std::string explanationStr = StringUtils::toUTF8(explanation->toString());
-                AutoRelease<IBlob> blob(att->createBlob(status, tra, &out->explanation, sizeof(bpb), bpb));
-                BlobUtils::setString(status, blob, explanationStr);
-                blob->close(status);
-                blob.release();
+                out->explanationNull = false;
+                writeStringToBlob(status, att, tra, &out->explanation, explanationStr);
             }
             else {
                 out->explanationNull = true;
@@ -349,7 +343,7 @@ FB_UDR_BEGIN_PROCEDURE(ftsAnalyze)
 
     std::unique_ptr<AnalyzerRepository> analyzers;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -364,39 +358,33 @@ FB_UDR_BEGIN_PROCEDURE(ftsAnalyze)
 
         const unsigned int sqlDialect = getSqlDialect(status, att);
 
-        std::string text;
-        if (!in->textNull) {
-            AutoRelease<IBlob> blob(att->openBlob(status, tra, &in->text, 0, nullptr));
-            text = BlobUtils::getString(status, blob);
-            blob->close(status);
-            blob.release();
-        }
-
         std::string analyzerName = DEFAULT_ANALYZER_NAME;
         if (!in->analyzerNameNull) {
             analyzerName.assign(in->analyzerName.str, in->analyzerName.length);
         }
 
-        try {
-            const auto& analyzer = procedure->analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
-            const auto& stringReader = newLucene<StringReader>(StringUtils::toUnicode(text));
+        if (!in->textNull) {
+            std::string text = readStringFromBlob(status, att, tra, &in->text);
+            try {
+                auto analyzer = procedure->analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
+                auto stringReader = newLucene<StringReader>(StringUtils::toUnicode(text));
 
-            tokenStream = analyzer->tokenStream(L"", stringReader);
-            termAttribute = tokenStream->addAttribute<TermAttribute>();
-            tokenStream->reset();
-        }
-        catch (const LuceneException& e) {
-            const std::string error_message = StringUtils::toUTF8(e.getError());
-            throwException(status, error_message.c_str());
+                tokenStream = analyzer->tokenStream(L"", stringReader);
+                termAttribute = tokenStream->addAttribute<TermAttribute>();
+                tokenStream->reset();
+            } catch (const LuceneException& e) {
+                const std::string error_message = StringUtils::toUTF8(e.getError());
+                throwException(status, error_message.c_str());
+            }
         }
     }
 
-    TokenStreamPtr tokenStream = nullptr;
-    TermAttributePtr termAttribute = nullptr;
+    TokenStreamPtr tokenStream;
+    TermAttributePtr termAttribute;
 
     FB_UDR_FETCH_PROCEDURE
     {
-        if (!tokenStream->incrementToken()) {
+        if (!(tokenStream && tokenStream->incrementToken())) {
             return false;
         }
         const auto uTerm = termAttribute->term();
@@ -416,386 +404,6 @@ FB_UDR_BEGIN_PROCEDURE(ftsAnalyze)
 
 FB_UDR_END_PROCEDURE
 
-/***
-PROCEDURE FTS$LOG_BY_DBKEY (
-    FTS$RELATION_NAME  VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-    FTS$DBKEY          CHAR(8) CHARACTER SET OCTETS NOT NULL,
-    FTS$CHANGE_TYPE    FTS$D_CHANGE_TYPE NOT NULL
-)
-EXTERNAL NAME 'luceneudr!ftsLogByDdKey'
-ENGINE UDR;
-***/
-FB_UDR_BEGIN_PROCEDURE(ftsLogByDdKey)
-    FB_UDR_MESSAGE(InMessage,
-        (FB_INTL_VARCHAR(252, CS_UTF8), relationName)
-        (FB_INTL_VARCHAR(8, CS_BINARY), dbKey)
-        (FB_INTL_VARCHAR(4, CS_UTF8), changeType)
-    );
-
-    FB_UDR_CONSTRUCTOR
-        , appendLogStmt(nullptr)
-    {
-    }
-
-    AutoRelease<IStatement> appendLogStmt;
-
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
-        char* name, unsigned nameSize)
-    {
-        // Forced internal request encoding to UTF8
-        memset(name, 0, nameSize);
-        memcpy(name, INTERNAL_UDR_CHARSET, std::size(INTERNAL_UDR_CHARSET));
-    }
-
-    FB_UDR_EXECUTE_PROCEDURE
-    {
-        if (in->relationNameNull) {
-            throwException(status, "FTS$RELATION_NAME can not be NULL");
-        }
-        std::string relationName(in->relationName.str, in->relationName.length);
-        relationName = rtrim(relationName);
-
-        if (in->dbKeyNull) {
-            throwException(status, "FTS$DBKEY can not be NULL");
-        }
-        const std::string dbKey(in->dbKey.str, in->dbKey.length);
-
-        if (in->changeTypeNull) {
-            throwException(status, "FTS$CHANGE_TYPE can not be NULL");
-        }
-        std::string changeType(in->changeType.str, in->changeType.length);
-        changeType = rtrim(changeType);
-
-        AutoRelease<IAttachment> att(context->getAttachment(status));
-        AutoRelease<ITransaction> tra(context->getTransaction(status));
-
-        const unsigned int sqlDialect = getSqlDialect(status, att);
-
-        constexpr char SQL_APPEND_LOG[] = R"SQL(
-INSERT INTO FTS$LOG (
-  FTS$RELATION_NAME,
-  FTS$DB_KEY,
-  FTS$REC_UUID,
-  FTS$REC_ID,
-  FTS$CHANGE_TYPE
-)
-VALUES(?, ?, NULL, NULL, ?)
-)SQL";
-
-        // prepare statement for append record to FTS log
-        if (!procedure->appendLogStmt.hasData()) {
-            procedure->appendLogStmt.reset(att->prepare(
-                status,
-                tra,
-                0,
-                SQL_APPEND_LOG,
-                sqlDialect,
-                IStatement::PREPARE_PREFETCH_METADATA
-            ));
-        }
-
-        FB_MESSAGE(Input, ThrowStatusWrapper,
-            (FB_INTL_VARCHAR(252, CS_UTF8), relationName)
-            (FB_INTL_VARCHAR(8, CS_BINARY), dbKey)
-            (FB_INTL_VARCHAR(4, CS_UTF8), changeType)
-        ) input(status, context->getMaster());
-
-        input.clear();
-
-        input->relationName.length = static_cast<ISC_USHORT>(relationName.length());
-        relationName.copy(input->relationName.str, input->relationName.length);
-
-        input->dbKey.length = static_cast<ISC_USHORT>(dbKey.length());
-        dbKey.copy(input->dbKey.str, input->dbKey.length);
-
-        input->changeType.length = static_cast<ISC_USHORT>(changeType.length());
-        changeType.copy(input->changeType.str, input->changeType.length);
-
-        procedure->appendLogStmt->execute(
-            status,
-            tra,
-            input.getMetadata(),
-            input.getData(),
-            nullptr,
-            nullptr
-        );
-    }
-
-    FB_UDR_FETCH_PROCEDURE
-    {
-        return false;
-    }
-
-FB_UDR_END_PROCEDURE
-
-
-/***
-PROCEDURE FTS$LOG_BY_ID (
-    FTS$RELATION_NAME  VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-    FTS$ID             BIGINT NOT NULL,
-    FTS$CHANGE_TYPE    FTS$D_CHANGE_TYPE NOT NULL
-)
-EXTERNAL NAME 'luceneudr!ftsLogById'
-ENGINE UDR;
-***/
-FB_UDR_BEGIN_PROCEDURE(ftsLogById)
-    FB_UDR_MESSAGE(InMessage,
-        (FB_INTL_VARCHAR(252, CS_UTF8), relationName)
-        (FB_BIGINT, id)
-        (FB_INTL_VARCHAR(4, CS_UTF8), changeType)
-    );
-
-    FB_UDR_CONSTRUCTOR
-        , appendLogStmt(nullptr)
-    {
-    }
-
-    AutoRelease<IStatement> appendLogStmt;
-
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
-        char* name, unsigned nameSize)
-    {
-        // Forced internal request encoding to UTF8
-        memset(name, 0, nameSize);
-        memcpy(name, INTERNAL_UDR_CHARSET, std::size(INTERNAL_UDR_CHARSET));
-    }
-
-    FB_UDR_EXECUTE_PROCEDURE
-    {
-        if (in->relationNameNull) {
-            throwException(status, "FTS$RELATION_NAME can not be NULL");
-        }
-        std::string relationName(in->relationName.str, in->relationName.length);
-        relationName = rtrim(relationName);
-
-        if (in->idNull) {
-            throwException(status, "FTS$ID can not be NULL");
-        }
-
-        if (in->changeTypeNull) {
-            throwException(status, "FTS$CHANGE_TYPE can not be NULL");
-        }
-        std::string changeType(in->changeType.str, in->changeType.length);
-        changeType = rtrim(changeType);
-
-        AutoRelease<IAttachment> att(context->getAttachment(status));
-        AutoRelease<ITransaction> tra(context->getTransaction(status));
-
-        const unsigned int sqlDialect = getSqlDialect(status, att);
-
-        constexpr char SQL_APPEND_LOG[] =
-            R"SQL(
-INSERT INTO FTS$LOG (
-  FTS$RELATION_NAME,
-  FTS$DB_KEY,
-  FTS$REC_UUID,
-  FTS$REC_ID,
-  FTS$CHANGE_TYPE
-)
-VALUES(?, NULL, NULL, ?, ?)
-)SQL";
-
-        // prepare statement for append record to FTS log
-        if (!procedure->appendLogStmt.hasData()) {
-            procedure->appendLogStmt.reset(att->prepare(
-                status,
-                tra,
-                0,
-                SQL_APPEND_LOG,
-                sqlDialect,
-                IStatement::PREPARE_PREFETCH_METADATA
-            ));
-        }
-
-        FB_MESSAGE(Input, ThrowStatusWrapper,
-            (FB_INTL_VARCHAR(252, CS_UTF8), relationName)
-            (FB_BIGINT, id)
-            (FB_INTL_VARCHAR(4, CS_UTF8), changeType)
-        ) input(status, context->getMaster());
-
-        input.clear();
-
-        input->relationName.length = static_cast<ISC_USHORT>(relationName.length());
-        relationName.copy(input->relationName.str, input->relationName.length);
-
-        input->idNull = in->idNull;
-        input->id = in->id;
-
-        input->changeType.length = static_cast<ISC_USHORT>(changeType.length());
-        changeType.copy(input->changeType.str, input->changeType.length);
-
-        procedure->appendLogStmt->execute(
-            status,
-            tra,
-            input.getMetadata(),
-            input.getData(),
-            nullptr,
-            nullptr
-        );
-    }
-
-    FB_UDR_FETCH_PROCEDURE
-    {
-        return false;
-    }
-
-FB_UDR_END_PROCEDURE
-
-
-/***
-PROCEDURE FTS$LOG_BY_UUID (
-    FTS$RELATION_NAME  VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-    FTS$UUID           CHAR(16) CHARACTER SET OCTETS NOT NULL,
-    FTS$CHANGE_TYPE    FTS$D_CHANGE_TYPE NOT NULL
-)
-EXTERNAL NAME 'luceneudr!ftsLogByUuid'
-ENGINE UDR;
-***/
-FB_UDR_BEGIN_PROCEDURE(ftsLogByUuid)
-    FB_UDR_MESSAGE(InMessage,
-        (FB_INTL_VARCHAR(252, CS_UTF8), relationName)
-        (FB_INTL_VARCHAR(16, CS_BINARY), uuid)
-        (FB_INTL_VARCHAR(4, CS_UTF8), changeType)
-    );
-
-    FB_UDR_CONSTRUCTOR
-        , appendLogStmt(nullptr)
-    {
-    }
-
-    AutoRelease<IStatement> appendLogStmt;
-
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
-        char* name, unsigned nameSize)
-    {
-        // Forced internal request encoding to UTF8
-        memset(name, 0, nameSize);
-        memcpy(name, INTERNAL_UDR_CHARSET, std::size(INTERNAL_UDR_CHARSET));
-    }
-
-    FB_UDR_EXECUTE_PROCEDURE
-    {
-        if (in->relationNameNull) {
-            throwException(status, "FTS$RELATION_NAME can not be NULL");
-        }
-        std::string relationName(in->relationName.str, in->relationName.length);
-        relationName = rtrim(relationName);
-
-        if (in->uuidNull) {
-            throwException(status, "FTS$UUID can not be NULL");
-        }
-        const std::string uuid(in->uuid.str, in->uuid.length);
-
-        if (in->changeTypeNull) {
-            throwException(status, "FTS$CHANGE_TYPE can not be NULL");
-        }
-        std::string changeType(in->changeType.str, in->changeType.length);
-        changeType = rtrim(changeType);
-
-        AutoRelease<IAttachment> att(context->getAttachment(status));
-        AutoRelease<ITransaction> tra(context->getTransaction(status));
-
-        const unsigned int sqlDialect = getSqlDialect(status, att);
-
-        constexpr char SQL_APPEND_LOG[] = R"SQL(
-INSERT INTO FTS$LOG (
-  FTS$RELATION_NAME,
-  FTS$DB_KEY,
-  FTS$REC_UUID,
-  FTS$REC_ID,
-  FTS$CHANGE_TYPE
-)
-VALUES(?, NULL, ?, NULL, ?)
-)SQL";
-
-        // prepare statement for append record to FTS log
-        if (!procedure->appendLogStmt.hasData()) {
-            procedure->appendLogStmt.reset(att->prepare(
-                status,
-                tra,
-                0,
-                SQL_APPEND_LOG,
-                sqlDialect,
-                IStatement::PREPARE_PREFETCH_METADATA
-            ));
-        }
-
-        FB_MESSAGE(Input, ThrowStatusWrapper,
-            (FB_INTL_VARCHAR(252, CS_UTF8), relationName)
-            (FB_INTL_VARCHAR(16, CS_BINARY), uuid)
-            (FB_INTL_VARCHAR(4, CS_UTF8), changeType)
-        ) input(status, context->getMaster());
-
-        input.clear();
-
-        input->relationName.length = static_cast<ISC_USHORT>(relationName.length());
-        relationName.copy(input->relationName.str, input->relationName.length);
-
-        input->uuid.length = static_cast<ISC_USHORT>(uuid.length());
-        uuid.copy(input->uuid.str, input->uuid.length);
-
-        input->changeType.length = static_cast<ISC_USHORT>(changeType.length());
-        changeType.copy(input->changeType.str, input->changeType.length);
-
-        procedure->appendLogStmt->execute(
-            status,
-            tra,
-            input.getMetadata(),
-            input.getData(),
-            nullptr,
-            nullptr
-        );
-    }
-
-    FB_UDR_FETCH_PROCEDURE
-    {
-        return false;
-    }
-
-FB_UDR_END_PROCEDURE
-
-
-/***
-PROCEDURE FTS$CLEAR_LOG
-EXTERNAL NAME 'luceneudr!ftsClearLog'
-ENGINE UDR;
-***/
-FB_UDR_BEGIN_PROCEDURE(ftsClearLog)
-
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
-        char* name, unsigned nameSize)
-    {
-        // Forced internal request encoding to UTF8
-        memset(name, 0, nameSize);
-        memcpy(name, INTERNAL_UDR_CHARSET, std::size(INTERNAL_UDR_CHARSET));
-    }
-
-    FB_UDR_EXECUTE_PROCEDURE
-    {
-        AutoRelease<IAttachment> att(context->getAttachment(status));
-        AutoRelease<ITransaction> tra(context->getTransaction(status));
-
-        const unsigned int sqlDialect = getSqlDialect(status, att);
-
-        att->execute(
-            status,
-            tra,
-            0,
-            "DELETE FROM FTS$LOG",
-            sqlDialect,
-            nullptr,
-            nullptr,
-            nullptr,
-            nullptr
-        );
-    }
-
-    FB_UDR_FETCH_PROCEDURE
-    {
-        return false;
-    }
-
-FB_UDR_END_PROCEDURE
 
 /***
 PROCEDURE FTS$UPDATE_INDEXES
@@ -806,17 +414,15 @@ FB_UDR_BEGIN_PROCEDURE(updateFtsIndexes)
 
     FB_UDR_CONSTRUCTOR
         , indexRepository(std::make_unique<FTSIndexRepository>(context->getMaster()))
-        , logDeleteStmt(nullptr)
-        , logStmt(nullptr)
     {
     }
 
 
-    FTSIndexRepositoryPtr indexRepository{nullptr};
-    AutoRelease<IStatement> logDeleteStmt{nullptr};
-    AutoRelease<IStatement> logStmt{nullptr};
+    FTSIndexRepositoryPtr indexRepository;
+    AutoRelease<IStatement> logDeleteStmt;
+    AutoRelease<IStatement> logStmt;
 
-    void getCharSet(ThrowStatusWrapper* status, IExternalContext* context,
+    void getCharSet([[maybe_unused]] ThrowStatusWrapper* status, [[maybe_unused]] IExternalContext* context,
         char* name, unsigned nameSize)
     {
         // Forced internal request encoding to UTF8
@@ -831,12 +437,12 @@ FB_UDR_BEGIN_PROCEDURE(updateFtsIndexes)
 
         const unsigned int sqlDialect = getSqlDialect(status, att);
 
-        constexpr char SQL_DELETE_FTS_LOG[] = R"SQL(
+        constexpr const char* SQL_DELETE_FTS_LOG = R"SQL(
 DELETE FROM FTS$LOG
 WHERE FTS$LOG_ID = ?
 )SQL";
 
-        constexpr char SQL_SELECT_FTS_LOG[] = R"SQL(
+        constexpr const char* SQL_SELECT_FTS_LOG = R"SQL(
 SELECT
     FTS$LOG_ID
   , TRIM(FTS$RELATION_NAME) AS FTS$RELATION_NAME
@@ -848,107 +454,41 @@ FROM FTS$LOG
 ORDER BY FTS$LOG_ID
 )SQL";
 
-        const auto& ftsDirectoryPath = getFtsDirectory(status, context);
+        const auto ftsDirectoryPath = getFtsDirectory(status, context);
 
-        // get all indexes with segments
-        FTSIndexMap indexes;
-        procedure->indexRepository->fillAllIndexesWithFields(status, att, tra, sqlDialect, indexes);
         // fill map indexes of relationName
-        std::map<std::string, std::list<std::string>> indexesByRelation;
-        for (const auto& [indexName, ftsIndex] : indexes) {
-            if (!ftsIndex->isActive()) {
-                continue;
-            }
-            const auto& indexDirectoryPath = ftsDirectoryPath / indexName;
-            if (!ftsIndex->checkAllFieldsExists() || !fs::is_directory(indexDirectoryPath)) {
-                // index need to rebuild
-                setIndexToRebuild(status, att, sqlDialect, ftsIndex);
-                // go to next index
-                continue;
-            }
-            ftsIndex->unicodeIndexDir = indexDirectoryPath.wstring();
+        std::unordered_map<std::string, std::list<FTSPreparedIndex>> indexesByRelation;
+        {
+            // get all indexes with segments
+            auto indexes = procedure->indexRepository->allIndexes(status, att, tra, sqlDialect, true);
 
-            // collect and save the SQL query to extract the record by key
-            ftsIndex->prepareExtractRecordStmt(status, att, tra, sqlDialect);
-
-            const auto& inMetadata = ftsIndex->getInExtractRecordMetadata();
-            if (inMetadata->getCount(status) != 1) {
-                // The number of input parameters must be equal to 1.
-                // index need to rebuild
-                setIndexToRebuild(status, att, sqlDialect, ftsIndex);
-                // go to next index
-                continue;
-            }
-            const auto& params = std::make_unique<FbFieldsInfo>(status, inMetadata);
-            const auto& keyParam = params->at(0);
-            if (keyParam->isBinary()) {
-                switch (keyParam->length) {
-                case 8:
-                    ftsIndex->keyFieldType = FTSKeyType::DB_KEY;
-                    break;
-                case 16:
-                    ftsIndex->keyFieldType = FTSKeyType::UUID;
-                    break;
-                default:
-                    // index need to rebuild
-                    setIndexToRebuild(status, att, sqlDialect, ftsIndex);
-                    // go to next index
+            for (auto&& ftsIndex : indexes) {
+                if (!ftsIndex.isActive()) {
                     continue;
                 }
-            }
-            else if (keyParam->isInt()) {
-                ftsIndex->keyFieldType = FTSKeyType::INT_ID;
-            }
-            else {
-                // index need to rebuild
-                setIndexToRebuild(status, att, sqlDialect, ftsIndex);
-                // go to next index
-                continue;
-            }
-
-
-            const auto& outMetadata =  ftsIndex->getOutExtractRecordMetadata();
-            auto fields = std::make_unique<FbFieldsInfo>(status, outMetadata);
-            // initial specific FTS property for fields
-            for (unsigned int i = 0; i < fields->size(); i++) {
-                const auto& field = fields->at(i);
-                auto iSegment = ftsIndex->findSegment(field->fieldName);
-                if (iSegment == ftsIndex->segments.end()) {
-                    // index need to rebuild
-                    setIndexToRebuild(status, att, sqlDialect, ftsIndex);
-                    // go to next index
-                    continue;
+                const std::string indexName = ftsIndex.indexName;
+                auto&& [it, insert] = indexesByRelation.try_emplace(ftsIndex.relationName);
+                auto& list = it->second;
+                try {
+                    auto preparedIndex = prepareFtsIndex(
+                        status,
+                        context->getMaster(),
+                        att,
+                        tra,
+                        sqlDialect,
+                        std::move(ftsIndex),
+                        ftsDirectoryPath,
+                        true);
+                    list.push_back(std::move(preparedIndex));
+                } catch (const FbException&) {
+                    // if prepared error - set index to rebuild
+                    setIndexToRebuild(status, att, sqlDialect, indexName);
                 }
-                auto const& segment = *iSegment;
-                field->ftsFieldName = StringUtils::toUnicode(segment->fieldName);
-                field->ftsKey = segment->key;
-                field->ftsBoost = segment->boost;
-                field->ftsBoostNull = segment->boostNull;
-                if (field->ftsKey) {
-                    ftsIndex->unicodeKeyFieldName = field->ftsFieldName;
-                }
-            }
-            fieldsInfoMap[indexName] = std::move(fields);
-
-            // put indexName to map
-            auto it = indexesByRelation.find(ftsIndex->relationName);
-            if (it == indexesByRelation.end()) {
-                std::list<std::string> indexNames;
-                indexNames.push_back(ftsIndex->indexName);
-                indexesByRelation[ftsIndex->relationName] = indexNames;
-            }
-            else {
-                it->second.push_back(ftsIndex->indexName);
             }
         }
 
         try
         {
-            DBKEYInput dbKeyInput(status, context->getMaster());
-            UUIDInput uuidInput(status, context->getMaster());
-            IDInput idInput(status, context->getMaster());
-
-
             // prepare statement for delete record from FTS log
             if (!procedure->logDeleteStmt.hasData()) {
                 procedure->logDeleteStmt.reset(att->prepare(
@@ -991,171 +531,55 @@ ORDER BY FTS$LOG_ID
             while (logRs->fetchNext(status, logOutput.getData()) == IStatus::RESULT_OK) {
                 const ISC_INT64 logId = logOutput->id;
                 const std::string relationName(logOutput->relationName.str, logOutput->relationName.length);
-                const std::string changeType(logOutput->changeType.str, logOutput->changeType.length);
+                const std::string_view changeType(logOutput->changeType.str, logOutput->changeType.length);
 
 
-                const auto itIndexNames = indexesByRelation.find(relationName);
-                if (itIndexNames == indexesByRelation.end()) {
+                const auto itIndexes = indexesByRelation.find(relationName);
+                if (itIndexes == indexesByRelation.end()) {
                     continue;
                 }
-                const auto& indexNames = itIndexNames->second;
+                auto& preparedIndexes = itIndexes->second;
 
                 // for all indexes for relationName
-                for (const auto& indexName : indexNames) {
-                    const auto& ftsIndex = indexes[indexName];
-                    const auto& indexWriter = getIndexWriter(status, att, tra, sqlDialect, ftsIndex);
-
-                    Lucene::String unicodeKeyValue;
-                    switch (ftsIndex->keyFieldType) {
+                for (auto& preparedIndex : preparedIndexes) {
+                    switch (preparedIndex.keyType()) {
                     case FTSKeyType::DB_KEY:
                         if (!logOutput->dbKeyNull) {
-                            std::string dbKey(logOutput->dbKey.str, logOutput->dbKey.length);
-                            unicodeKeyValue = StringUtils::toUnicode(string_to_hex(dbKey));
+                            preparedIndex.updateIndexByDbkey(
+                                status,
+                                att,
+                                tra,
+                                reinterpret_cast<unsigned char*>(logOutput->dbKey.str),
+                                logOutput->dbKey.length,
+                                changeType
+                            );
                         }
                         break;
                     case FTSKeyType::UUID:
                         if (!logOutput->uuidNull) {
-                            std::string uuid(logOutput->uuid.str, logOutput->uuid.length);
-                            unicodeKeyValue = StringUtils::toUnicode(string_to_hex(uuid));
+                            preparedIndex.updateIndexByUuui(
+                                status,
+                                att,
+                                tra,
+                                reinterpret_cast<unsigned char*>(logOutput->uuid.str),
+                                logOutput->uuid.length,
+                                changeType
+                            );
                         }
                         break;
                     case FTSKeyType::INT_ID:
                         if (!logOutput->recIdNull) {
-                            std::string id = std::to_string(logOutput->recId);
-                            unicodeKeyValue = StringUtils::toUnicode(id);
+                            preparedIndex.updateIndexById(
+                                status,
+                                att,
+                                tra,
+                                logOutput->recId,
+                                changeType
+                            );
                         }
                         break;
                     default:
                         continue;
-                    }
-
-                    if (unicodeKeyValue.empty()) {
-                        continue;
-                    }
-
-                    if (changeType == "D") {
-                        TermPtr term = newLucene<Term>(ftsIndex->unicodeKeyFieldName, unicodeKeyValue);
-                        indexWriter->deleteDocuments(term);
-                        continue;
-                    }
-
-                    const auto& stmt = ftsIndex->getPreparedExtractRecordStmt();
-                    const auto& outMetadata = ftsIndex->getOutExtractRecordMetadata();
-
-                    const auto& fields = *fieldsInfoMap[indexName];
-
-                    AutoRelease<IResultSet> rs(nullptr);
-                    switch (ftsIndex->keyFieldType) {
-                    case FTSKeyType::DB_KEY:
-                        if (logOutput->dbKeyNull) continue;
-                        dbKeyInput->dbKeyNull = logOutput->dbKeyNull;
-                        dbKeyInput->dbKey.length = logOutput->dbKey.length;
-                        memcpy(dbKeyInput->dbKey.str, logOutput->dbKey.str, logOutput->dbKey.length);
-                        rs.reset(stmt->openCursor(
-                            status,
-                            tra,
-                            dbKeyInput.getMetadata(),
-                            dbKeyInput.getData(),
-                            outMetadata,
-                            0
-                        ));
-                        break;
-                    case FTSKeyType::UUID:
-                        if (logOutput->uuidNull) continue;
-                        uuidInput->uuidNull = logOutput->uuidNull;
-                        uuidInput->uuid.length = logOutput->uuid.length;
-                        memcpy(uuidInput->uuid.str, logOutput->uuid.str, uuidInput->uuid.length);
-                        rs.reset(stmt->openCursor(
-                            status,
-                            tra,
-                            uuidInput.getMetadata(),
-                            uuidInput.getData(),
-                            outMetadata,
-                            0
-                        ));
-                        break;
-                    case FTSKeyType::INT_ID:
-                        if (logOutput->recIdNull) continue;
-                        idInput->idNull = logOutput->recIdNull;
-                        idInput->id = logOutput->recId;
-                        rs.reset(stmt->openCursor(
-                            status,
-                            tra,
-                            idInput.getMetadata(),
-                            idInput.getData(),
-                            outMetadata,
-                            0
-                        ));
-                        break;
-                    default:
-                        continue;
-                    }
-
-                    if (!rs) {
-                        continue;
-                    }
-
-                    const unsigned colCount = outMetadata->getCount(status);
-                    const unsigned msgLength = outMetadata->getMessageLength(status);
-                    {
-                        // allocate output buffer
-                        auto b = std::make_unique<unsigned char[]>(msgLength);
-                        unsigned char* buffer = b.get();
-                        memset(buffer, 0, msgLength);
-                        while (rs->fetchNext(status, buffer) == IStatus::RESULT_OK) {
-                            bool emptyFlag = true;
-                            const auto& doc = newLucene<Document>();
-
-                            for (unsigned int i = 0; i < colCount; i++) {
-                                const auto& field = fields[i];
-
-                                Lucene::String unicodeValue;
-                                if (!field->isNull(buffer)) {
-                                    const std::string value = field->getStringValue(status, att, tra, buffer);
-                                    if (!value.empty()) {
-                                        // re-encode content to Unicode only if the string is non-binary
-                                        if (!field->isBinary()) {
-                                            unicodeValue = StringUtils::toUnicode(value);
-                                        }
-                                        else {
-                                            // convert the binary string to a hexadecimal representation
-                                            unicodeValue = StringUtils::toUnicode(string_to_hex(value));
-                                        }
-                                    }
-                                }
-                                // add field to document
-                                if (field->ftsKey) {
-                                    const auto& luceneField = newLucene<Field>(field->ftsFieldName, unicodeValue, Field::STORE_YES, Field::INDEX_NOT_ANALYZED);
-                                    doc->add(luceneField);
-                                }
-                                else {
-                                    const auto& luceneField = newLucene<Field>(field->ftsFieldName, unicodeValue, Field::STORE_NO, Field::INDEX_ANALYZED);
-                                    if (!field->ftsBoostNull) {
-                                        luceneField->setBoost(field->ftsBoost);
-                                    }
-                                    doc->add(luceneField);
-                                    emptyFlag = emptyFlag && unicodeValue.empty();
-                                }
-
-                            }
-                            if ((changeType == "I") && !emptyFlag) {
-                                indexWriter->addDocument(doc);
-                            }
-                            if (changeType == "U") {
-                                if (!ftsIndex->unicodeKeyFieldName.empty()) {
-                                    TermPtr term = newLucene<Term>(ftsIndex->unicodeKeyFieldName, unicodeKeyValue);
-                                    if (!emptyFlag) {
-                                        indexWriter->updateDocument(term, doc);
-                                    }
-                                    else {
-                                        indexWriter->deleteDocuments(term);
-                                    }
-                                }
-                            }
-                            memset(buffer, 0, msgLength);
-                        }
-                        rs->close(status);
-                        rs.release();
                     }
                 }
                 // delete record from FTS log
@@ -1174,10 +598,12 @@ ORDER BY FTS$LOG_ID
             logRs->close(status);
             logRs.release();
             // commit changes for all indexes
-            for (const auto& pIndexWriter : indexWriters) {
-                const auto& indexWriter = pIndexWriter.second;
-                indexWriter->commit();
-                indexWriter->close();
+            for (auto&& [relationName, preparedIndexes] : indexesByRelation) {
+                for (auto& preparedIndex : preparedIndexes) {
+                    preparedIndex.optimize(status);
+                    preparedIndex.commit(status);
+                    preparedIndex.close(status);
+                }
             }
         }
         catch (const LuceneException& e) {
@@ -1185,21 +611,6 @@ ORDER BY FTS$LOG_ID
             throwException(status, error_message.c_str());
         }
     }
-
-    // Input message for extracting a record by RDB$DB_KEY
-    FB_MESSAGE(DBKEYInput, ThrowStatusWrapper,
-        (FB_INTL_VARCHAR(8, CS_BINARY), dbKey)
-    );
-
-    // Input message for extracting a record by UUID
-    FB_MESSAGE(UUIDInput, ThrowStatusWrapper,
-        (FB_INTL_VARCHAR(16, CS_BINARY), uuid)
-    );
-
-    // Input message for extracting a record by integer ID
-    FB_MESSAGE(IDInput, ThrowStatusWrapper,
-        (FB_BIGINT, id)
-    );
 
     // Input message for the FTS log record delete statement
     FB_MESSAGE(LogDelInput, ThrowStatusWrapper,
@@ -1216,8 +627,6 @@ ORDER BY FTS$LOG_ID
         (FB_INTL_VARCHAR(4, CS_UTF8), changeType)
     );
 
-    std::map<std::string, FbFieldsInfoPtr> fieldsInfoMap;
-    std::map<std::string, IndexWriterPtr> indexWriters;
 
     FB_UDR_FETCH_PROCEDURE
     {
@@ -1225,13 +634,12 @@ ORDER BY FTS$LOG_ID
     }
 
 
-    void setIndexToRebuild(ThrowStatusWrapper* const status, IAttachment* const att, const unsigned int sqlDialect, const FTSIndexPtr& ftsIndex)
+    void setIndexToRebuild(ThrowStatusWrapper* status, IAttachment* att, unsigned int sqlDialect, const std::string& indexName)
     {
-        ftsIndex->status = "U";
         // this is done in an autonomous transaction
         AutoRelease<ITransaction> tra(att->startTransaction(status, 0, nullptr));
         try {
-            procedure->indexRepository->setIndexStatus(status, att, tra, sqlDialect, ftsIndex->indexName, ftsIndex->status);
+            procedure->indexRepository->setIndexStatus(status, att, tra, sqlDialect, indexName, "U");
             tra->commit(status);
             tra.release();
         }
@@ -1241,22 +649,4 @@ ORDER BY FTS$LOG_ID
         }
     }
 
-    IndexWriterPtr const getIndexWriter(ThrowStatusWrapper* const status, IAttachment* const att, ITransaction* const tra, const unsigned int sqlDialect, const FTSIndexPtr& ftsIndex)
-    {
-        const auto it = indexWriters.find(ftsIndex->indexName);
-        if (it == indexWriters.end()) {
-            const auto& fsIndexDir = FSDirectory::open(ftsIndex->unicodeIndexDir);
-            const auto& analyzers = procedure->indexRepository->getAnalyzerRepository();
-            const auto& analyzer = analyzers->createAnalyzer(status, att, tra, sqlDialect, ftsIndex->analyzer);
-            const auto& indexWriter = newLucene<IndexWriter>(fsIndexDir, analyzer, IndexWriter::MaxFieldLengthLIMITED);
-            indexWriters[ftsIndex->indexName] = indexWriter;
-            return indexWriter;
-        }
-        else {
-            return it->second;
-        }
-    }
-
 FB_UDR_END_PROCEDURE
-
-FB_UDR_IMPLEMENT_ENTRY_POINT

@@ -40,9 +40,6 @@
     <ClCompile Include="src\FTS_MANAGEMENT.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
-    <ClCompile Include="src\EncodeUtils.cpp">
-      <Filter>Source files</Filter>
-    </ClCompile>
     <ClCompile Include="src\FTS_STATISTICS.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
@@ -73,10 +70,13 @@
     <ClCompile Include="src\Analyzers.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Utils.cpp">
+    <ClCompile Include="src\FTSTrigger.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
-    <ClCompile Include="src\FTSTrigger.cpp">
+    <ClCompile Include="src\FTSHelper.cpp">
+      <Filter>Source files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\LuceneUdr.cpp">
       <Filter>Source files</Filter>
     </ClCompile>
     <ClCompile Include="src\WhitespaceLowerCaseAnalyzer.cpp">
@@ -105,9 +105,6 @@
     <ClInclude Include="src\FBUtils.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="src\EncodeUtils.h">
-      <Filter>Header files</Filter>
-    </ClInclude>
     <ClInclude Include="src\LuceneAnalyzerFactory.h">
       <Filter>Header files</Filter>
     </ClInclude>
@@ -129,10 +126,10 @@
     <ClInclude Include="src\Analyzers.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Utils.h">
+    <ClInclude Include="src\FTSTrigger.h">
       <Filter>Header files</Filter>
     </ClInclude>
-    <ClInclude Include="src\FTSTrigger.h">
+    <ClInclude Include="src\FTSHelper.h">
       <Filter>Header files</Filter>
     </ClInclude>
     <ClInclude Include="src\WhitespaceLowerCaseAnalyzer.h">
@@ -143,9 +140,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="defs\udr_plugin.def">
-      <Filter>Source files</Filter>
-    </None>
     <None Include="sql\fts%24install.sql">
       <Filter>SQL scripts</Filter>
     </None>

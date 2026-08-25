@@ -14,19 +14,23 @@
  *  Contributor(s): ______________________________________.
 **/
 
-#include "LuceneUdr.h"
-#include <map>
 #include <list>
-#include <unordered_set>
+#include <map>
 #include <string>
+#include <string_view>
+#include <unordered_set>
+
 #include "LuceneHeaders.h"
+#include "LuceneUdr.h"
 
 namespace LuceneUDR 
 {
 
-    struct ci_more
+    struct ci_less
     {
-        // case-independent (ci) compare_more binary function
+        using is_transparent = void;
+
+        // case-independent (ci) compare_less binary function
         struct nocase_compare
         {
             bool operator() (const unsigned char& c1, const unsigned char& c2) const {
@@ -34,19 +38,27 @@ namespace LuceneUDR
             }
         };
 
-        bool operator() (const std::string& s1, const std::string& s2) const {
+        bool operator() (std::string_view s1, std::string_view s2) const {
             return std::lexicographical_compare(
                 s1.begin(), s1.end(),   // source range
                 s2.begin(), s2.end(),   // dest range
-                nocase_compare()        // comparison
+                nocase_compare()                // comparison
             );
         }
     };
 
-    constexpr char DEFAULT_ANALYZER_NAME[] = "STANDARD";
+    constexpr const char* DEFAULT_ANALYZER_NAME = "STANDARD";
 
     struct AnalyzerInfo
     {
+        AnalyzerInfo() = default;
+        AnalyzerInfo(std::string_view analyzerName_, std::string_view baseAnalyzer_, bool stopWordsSupported_, bool systemFlag_)
+            : analyzerName(analyzerName_)
+            , baseAnalyzer(baseAnalyzer_)
+            , stopWordsSupported(stopWordsSupported_)
+            , systemFlag(systemFlag_)
+        {}
+
         std::string analyzerName;
         std::string baseAnalyzer;
         bool stopWordsSupported;
@@ -59,11 +71,11 @@ namespace LuceneUDR
         {
             std::function<Lucene::AnalyzerPtr()> simpleFactory;
             std::function<Lucene::AnalyzerPtr(const Lucene::HashSet<Lucene::String>)> extFactory;
-            std::function<const Lucene::HashSet<Lucene::String>()> getStopWords;
+            std::function<Lucene::HashSet<Lucene::String>()> getStopWords;
             bool stopWordsSupported;
         };
 
-        std::map<std::string, AnalyzerFactory, ci_more> m_factories;
+        std::map<std::string, AnalyzerFactory, ci_less> m_factories;
 
     public:
 
@@ -71,24 +83,24 @@ namespace LuceneUDR
 
         ~LuceneAnalyzerFactory();
 
-        bool hasAnalyzer(const std::string& analyzerName);
+        bool hasAnalyzer(std::string_view analyzerName) const;
 
-        bool isStopWordsSupported(const std::string& analyzerName);
+        bool isStopWordsSupported(std::string_view analyzerName) const;
 
-        Lucene::AnalyzerPtr createAnalyzer(Firebird::ThrowStatusWrapper* status, const std::string& analyzerName);
+        Lucene::AnalyzerPtr createAnalyzer(Firebird::ThrowStatusWrapper* status, std::string_view analyzerName) const;
 
-        Lucene::AnalyzerPtr createAnalyzer(Firebird::ThrowStatusWrapper* status, const std::string& analyzerName, const Lucene::HashSet<Lucene::String> stopWords);
+        Lucene::AnalyzerPtr createAnalyzer(Firebird::ThrowStatusWrapper* status, std::string_view analyzerName, const Lucene::HashSet<Lucene::String> stopWords) const;
 
-        std::unordered_set<std::string> getAnalyzerNames();
+        std::unordered_set<std::string> getAnalyzerNames() const;
 
-        const AnalyzerInfo getAnalyzerInfo(Firebird::ThrowStatusWrapper* status, const std::string& analyzerName);
+        AnalyzerInfo getAnalyzerInfo(Firebird::ThrowStatusWrapper* status, std::string_view analyzerName) const;
 
-        std::list<AnalyzerInfo> getAnalyzerInfos();
+        std::list<AnalyzerInfo> getAnalyzerInfos() const;
 
-        const Lucene::HashSet<Lucene::String> getAnalyzerStopWords(Firebird::ThrowStatusWrapper* status, const std::string& analyzerName);
+        Lucene::HashSet<Lucene::String> getAnalyzerStopWords(Firebird::ThrowStatusWrapper* status, std::string_view analyzerName) const;
 
     };
 
 }
 
-#endif	// LUCENE_ANALYZER_FACTORY_H
+#endif // LUCENE_ANALYZER_FACTORY_H

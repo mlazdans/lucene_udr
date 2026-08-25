@@ -12,6 +12,7 @@
 **/
 
 #include "FBFieldInfo.h"
+
 #include "FBUtils.h"
 
 using namespace Firebird;
@@ -19,85 +20,74 @@ using namespace LuceneUDR;
 
 namespace FTSMetadata
 {
-    std::string FbFieldInfo::getStringValue(ThrowStatusWrapper* status, IAttachment* att, ITransaction* tra, unsigned char* buffer)
+    FbFieldInfo::FbFieldInfo(ThrowStatusWrapper* status, IMessageMetadata* const meta, unsigned index)
+        : fieldName(meta->getField(status, index))
+        , relationName(meta->getRelation(status, index))
+        , owner(meta->getOwner(status, index))
+        , alias(meta->getAlias(status, index))
+        , fieldIndex(index)
+        , dataType(meta->getType(status, index))
+        , subType(meta->getSubType(status, index))
+        , length(meta->getLength(status, index))
+        , scale(meta->getScale(status, index))
+        , charSet(meta->getCharSet(status, index))
+        , offset(meta->getOffset(status, index))
+        , nullOffset(meta->getNullOffset(status, index))
+        , ftsFieldName{}
+        , ftsBoost{1.0}
+        , ftsBoostNull(true)
+        , ftsKey(false)
+        , nullable(meta->isNullable(status, index))
     {
+    }
+
+    std::string FbFieldInfo::getStringValue(ThrowStatusWrapper* status, IAttachment* att, ITransaction* tra, unsigned char* buffer) const
+    try
+    {
+        if (isNull(buffer)) {
+            return {};
+        }
         switch (dataType) {
         case SQL_TEXT:
         case SQL_VARYING:
         {
-            std::string s(getCharValue(buffer), getOctetsLength(buffer));
-            return s;
+            if (charSet != CS_BINARY) {
+                return { getCharValue(buffer), static_cast<size_t>(getOctetsLength(buffer)) };
+            }
+            else {
+                return binary_to_hex(getBinaryValue(buffer), static_cast<size_t>(getOctetsLength(buffer)));
+            }
+            
         }
         case SQL_BLOB:
         {
-            ISC_QUAD blobId = getQuadValue(buffer);
-            std::string s = "";
-            
-            AutoRelease<IBlob> blob(att->openBlob(status, tra, &blobId, 0, nullptr));
-            s = BlobUtils::getString(status, blob);
-            blob->close(status);
-            blob.release();
-            
-            return s;
-        }
-        case SQL_SHORT:
-        {
-            if (!scale) {
-                return std::to_string(getShortValue(buffer));
+            ISC_QUAD* blobIdPtr = getQuadPtr(buffer);
+            if (subType == 1) {
+                return readStringFromBlob(status, att, tra, blobIdPtr);
             }
-        }
-        case SQL_LONG:
-        {
-            if (!scale) {
-                return std::to_string(getLongValue(buffer));
-            }
-        }
-        case SQL_INT64:
-        {
-            if (!scale) {
-                return std::to_string(getInt64Value(buffer));
+            else {
+                auto v = readBinaryFromBlob(status, att, tra, blobIdPtr);
+                return binary_to_hex(v.data(), v.size());
             }
         }
         default:
             // Other types are not considered yet.
-            return "";
+            return {};
         }
     }
+    catch (const std::exception& e) {
+        IscRandomStatus st(e);
+        throw Firebird::FbException(status, st);
+    }
 
-    FbFieldsInfo::FbFieldsInfo(ThrowStatusWrapper* status, IMessageMetadata* const meta)
-        : FbFieldInfoVector()
-        , m_fieldByNameMap()
+    FbFieldsInfo makeFbFieldsInfo(Firebird::ThrowStatusWrapper* status, Firebird::IMessageMetadata* meta)
     {
         const auto fieldCount = meta->getCount(status);
+        FbFieldsInfo fields;
+        fields.reserve(fieldCount);
         for (unsigned i = 0; i < fieldCount; i++) {
-            auto field = std::make_unique<FbFieldInfo>();
-            field->fieldIndex = i;
-            field->nullable = meta->isNullable(status, i);
-            field->fieldName.assign(meta->getField(status, i));
-            field->relationName.assign(meta->getRelation(status, i));
-            field->owner.assign(meta->getOwner(status, i));
-            field->alias.assign(meta->getAlias(status, i));
-            field->dataType = meta->getType(status, i);
-            field->subType = meta->getSubType(status, i);
-            field->length = meta->getLength(status, i);
-            field->scale = meta->getScale(status, i);
-            field->charSet = meta->getCharSet(status, i);
-            field->offset = meta->getOffset(status, i);
-            field->nullOffset = meta->getNullOffset(status, i);
-            this->push_back(std::move(field));
+            fields.emplace_back(status, meta, i);
         }
-        for (unsigned i = 0; i < fieldCount; i++) {
-            const auto& field = this->at(i);
-            m_fieldByNameMap[field->fieldName] = i;
-        }
-    }
-
-    int FbFieldsInfo::findFieldByName(const std::string& fieldName)
-    {
-        auto it = m_fieldByNameMap.find(fieldName);
-        if (it != m_fieldByNameMap.end()) {
-            return it->second;
-        }
-        return -1;
+        return fields;
     }
 }

@@ -11,71 +11,16 @@
 # Contributor(s): ______________________________________.
 # ----------------------------------------------------------------------------
 
-cmake_minimum_required (VERSION 3.5)
+cmake_minimum_required (VERSION 3.13)
 
-project (luceneudr VERSION 1.2.2)
-
-set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/build)
+project (luceneudr
+    VERSION 1.4.0
+    LANGUAGES CXX
+)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
-
-###############################################################################
-# CMake standard options
-############
-
-option(BUILD_SHARED_LIBS "Build shared library" ON)
-
-
-###############################################################################
-# Require and enable C++ 0x/11/14/17
-############
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-message(STATUS "luceneudr compile: C++${CMAKE_CXX_STANDARD}")
-
-add_compile_definitions(HAVE_CONFIG_H)
-
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang" OR CMAKE_COMPILER_IS_GNUCXX)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wnarrowing -Werror")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -s")
-    include(CheckCXXCompilerFlag)
-    check_cxx_compiler_flag("-stdlib=libc++" CXX_SUPPORTS_STDLIB)
-    if(CXX_SUPPORTS_STDLIB)
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
-        set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
-        set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -stdlib=libc++")
-    endif()
-elseif(CMAKE_CXX_COMPILER_ID MATCHES "Intel")
-    string(REGEX REPLACE "[/-]W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    if (NOT (CMAKE_VERSION VERSION_LESS 3.6.0)) # Compiler features for Intel in CMake 3.6+
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Qstd=c++17")
-    endif()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /QaxCORE-AVX2")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /fp:precise")
-    set(CMAKE_CXX_FLAGS_DEBUG   "${CMAKE_CXX_FLAGS_DEBUG}   /Od")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O3")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Qipo")
-elseif(MSVC)
-    string(REGEX REPLACE "/W[0-4]" "/W4" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
-    if(MSVC_VERSION LESS 1900)
-        message(FATAL_ERROR "luceneudr build: Build requires C++17-compliant compiler")
-    endif()
-endif()
-
-if(CMAKE_BUILD_TYPE MATCHES Debug)
-    message(STATUS "luceneudr build: compiler flags - ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_DEBUG}")
-elseif(CMAKE_BUILD_TYPE MATCHES Release)
-    message(STATUS "luceneudr build: compiler flags - ${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_RELEASE}")
-endif()
-
-####################################
-# src
-####################################
-file(GLOB_RECURSE luceneudr_sources "src/*")
 
 # WOW64 32-bit?
 set(FIREBIRD_DIR "C:/Program Files/Firebird/Firebird_3_0")
@@ -89,6 +34,38 @@ add_compile_definitions(WIN32_LEAN_AND_MEAN)
 # library target
 ####################################
 add_library(luceneudr SHARED ${luceneudr_sources})
+target_sources(luceneudr PRIVATE
+    "src/Analyzers.cpp"
+    "src/EnglishAnalyzer.cpp"
+    "src/FBFieldInfo.cpp"
+    "src/FBUtils.cpp"
+    "src/FTS.cpp"
+    "src/FTS_HIGHLIGHTER.cpp"
+    "src/FTS_MANAGEMENT.cpp"
+    "src/FTS_STATISTICS.cpp"
+    "src/FTS_TRIGGER_HELPER.cpp"
+    "src/FTSHelper.cpp"
+    "src/FTSIndex.cpp"
+    "src/FTSTrigger.cpp"
+    "src/FTSUtils.cpp"
+    "src/LuceneAnalyzerFactory.cpp"
+    "src/LuceneFiles.cpp"
+    "src/LuceneUdr.cpp"
+    "src/Relations.cpp"
+)
+
+# require C++17 standard
+target_compile_features(luceneudr PRIVATE cxx_std_17)
+target_compile_definitions(luceneudr PRIVATE HAVE_CONFIG_H)
+target_compile_options(luceneudr PRIVATE
+#    -Werror
+
+    -Wall
+    -Wextra
+    -Wpedantic
+
+    -Wno-unused-parameter
+)
 
 # find_package(liblucene++ REQUIRED)
 # find_package(liblucene++-contrib REQUIRED)
@@ -113,24 +90,40 @@ link_directories(${FIREBIRD_LIB_DIR})
 ####################################
 # include directories
 ####################################
-target_include_directories(luceneudr PRIVATE "include")
-target_include_directories(luceneudr PRIVATE ${FIREBIRD_INCLUDE_DIR})
-target_include_directories(luceneudr PRIVATE "C:/local/boost_1_83_0")
+target_include_directories(luceneudr PRIVATE
+    ${liblucene++_INCLUDE_DIRS}
+    ${liblucene++-contrib_INCLUDE_DIRS}
+    ${FIREBIRD_INCLUDE_DIR}
+    "include"
+)
 
-target_link_directories(luceneudr PRIVATE ${FIREBIRD_LIB_DIR})
-target_link_directories(luceneudr PRIVATE "C:/local/boost_1_83_0/lib64-msvc-14.2")
-target_link_directories(luceneudr PRIVATE ${liblucene++_LIBRARY_DIRS})
-target_link_directories(luceneudr PRIVATE ${liblucene++-contrib_LIBRARY_DIRS})
+####################################
+# link directories
+####################################
+target_link_directories(luceneudr PRIVATE
+    ${liblucene++_LIBRARY_DIRS}
+    ${liblucene++-contrib_LIBRARY_DIRS}
+)
 
-target_link_libraries(luceneudr fbclient_ms)
-target_link_libraries(luceneudr -lstdc++fs)
+target_link_libraries(luceneudr
+    -lstdc++fs
+    ${liblucene++_LIBRARIES}
+    ${liblucene++-contrib_LIBRARIES}
+)
 
-target_link_libraries(luceneudr ${liblucene++_LIBRARIES})
-target_link_libraries(luceneudr ${liblucene++-contrib_LIBRARIES})
+# target_include_directories(luceneudr PRIVATE "include")
+# target_include_directories(luceneudr PRIVATE ${FIREBIRD_INCLUDE_DIR})
+# target_include_directories(luceneudr PRIVATE "C:/local/boost_1_83_0")
+
+# target_link_directories(luceneudr PRIVATE ${FIREBIRD_LIB_DIR})
+# target_link_directories(luceneudr PRIVATE "C:/local/boost_1_83_0/lib64-msvc-14.2")
+# target_link_directories(luceneudr PRIVATE ${liblucene++_LIBRARY_DIRS})
+# target_link_directories(luceneudr PRIVATE ${liblucene++-contrib_LIBRARY_DIRS})
 
 install(TARGETS luceneudr DESTINATION ${FIREBIRD_UDR_DIR})
 install(FILES "sql/fts$install.sql"
               "sql/fts$install_1.sql"
               "sql/fts$uninstall.sql"
-              DESTINATION ${FIREBIRD_UDR_DIR})
+              DESTINATION ${FIREBIRD_UDR_DIR}
+)
 

@@ -21,18 +21,18 @@ to register procedures and functions in an indexed database.
 For databases of the 1st SQL dialect, use the script [fts$install_1.sql](https://github.com/IBSurgeon/lucene_udr/blob/main/sql/fts%24install_1.sql)
 
 You can download ready-made builds for Windows OS using the links:
-* [LuceneUdr_Win_x64.zip](https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/LuceneUdr_Win_x64.zip)
-* [LuceneUdr_Win_x86.zip](https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/LuceneUdr_Win_x86.zip)
+* [LuceneUdr_Win_x64.zip](https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/LuceneUdr_Win_x64.zip)
+* [LuceneUdr_Win_x86.zip](https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/LuceneUdr_Win_x86.zip)
 
 Under Linux, you can compile the library yourself.
 
 Download the demo database, for which the examples are prepared, using the following links:
-* [fts_demo_3.0.zip](https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/fts_demo_3.0.zip) - database for Firebird 3.0;
-* [fts_demo_4.0.zip](https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/fts_demo_4.0.zip) - database for Firebird 4.0.
+* [fts_demo_3.0.zip](https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/fts_demo_3.0.zip) - database for Firebird 3.0;
+* [fts_demo_4.0.zip](https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/fts_demo_4.0.zip) - database for Firebird 4.0.
 
 Documentation in English and Russian is available at the links:
-* [lucene-udr.pdf](https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/lucene-udr.pdf);
-* [lucene-udr-rus.pdf](https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/lucene-udr-rus.pdf).
+* [lucene-udr.pdf](https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/lucene-udr.pdf);
+* [lucene-udr-rus.pdf](https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/lucene-udr-rus.pdf).
 
 ## Building and installing the library under Linux
 
@@ -41,27 +41,25 @@ In some Linux distributions, you can install `lucene++` and `lucene++-contrib` f
 If there are no libraries in the repositories, then you will need to download and build them from the source.
 
 ```
-$ git clone https://github.com/luceneplusplus/LucenePlusPlus.git
-$ cd LucenePlusPlus
-$ mkdir build; cd build
-$ cmake ..
-$ make
-$ sudo make install
+git clone https://github.com/luceneplusplus/LucenePlusPlus.git
+cd LucenePlusPlus
+mkdir build; cd build
+cmake ..
+make -j$(nproc)
+sudo cmake --install . --prefix /usr
 ```
-
-In order for the `lucene++` library to be installed in `/usr/lib` and not in `/usr/local/lib`, run `cmake -DCMAKE_INSTALL_PREFIX=/usr..` instead of `cmake ..`
 
 The building of the lucene++ library is described in more detail in [BUILDING.md](https://github.com/luceneplusplus/LucenePlusPlus/blob/master/doc/BUILDING.md).
 
 Now you can start building UDR Lucene.
 
 ```
-$ git clone https://github.com/IBSurgeon/lucene_udr.git
-$ cd lucene_udr
-$ mkdir build; cd build
-$ cmake ..
-$ make
-$ sudo make install
+git clone https://github.com/IBSurgeon/lucene_udr.git
+cd lucene_udr
+mkdir build
+cmake -S . -B ./build
+cmake --build ./build -- -j$(nproc)
+sudo cmake --install ./build
 ```
 
 In the process of executing `cmake ..` the following error may occur
@@ -145,7 +143,7 @@ Analysis is the transformation of known text into smaller, more precise units fo
 
 The text goes through various operations to extract keywords, remove common words and punctuation marks, convert words to lower case, and so on.
 
-The list of available analyzers can be obtained using the `FTS$MANAGEMENT.FTS$ANALYZERS` procedure.
+The list of available analyzers can be obtained using the `FTS$MANAGEMENT.FTS$ALL_ANALYZERS` procedure.
 
 The following analyzers are available by default:
 
@@ -446,7 +444,8 @@ SELECT
   , FTS$UUID
   , FTS$SCORE
   , FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_NAME_EN', 'Transformers Bumblebee')
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_NAME_EN', 'Transformers Bumblebee')
 ```
 
 Output parameters:
@@ -470,23 +469,26 @@ SELECT
   FTS.FTS$SCORE,
   P.PRODUCT_ID,
   P.PRODUCT_NAME
-FROM FTS$SEARCH('IDX_PRODUCT_NAME_EN', 'Transformers Bumblebee') FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_NAME_EN', 'Transformers Bumblebee') FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 
 SELECT
   FTS.FTS$SCORE,
   P.PRODUCT_UUID,
   P.PRODUCT_NAME
-FROM FTS$SEARCH('IDX_PRODUCT_UUID_EN', 'Transformers Bumblebee') FTS
-JOIN PRODUCTS P ON P.PRODUCT_UUID = FTS.FTS$UUID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_UUID_EN', 'Transformers Bumblebee') FTS
+  JOIN PRODUCTS P ON P.PRODUCT_UUID = FTS.FTS$UUID;
 
 SELECT
   FTS.FTS$SCORE,
   P.RDB$DB_KEY,
   P.PRODUCT_ID,
   P.PRODUCT_NAME
-FROM FTS$SEARCH('IDX_PRODUCT_DBKEY_EN', 'Transformers Bumblebee') FTS
-JOIN PRODUCTS P ON P.RDB$DB_KEY = FTS.FTS$DB_KEY;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_DBKEY_EN', 'Transformers Bumblebee') FTS
+  JOIN PRODUCTS P ON P.RDB$DB_KEY = FTS.FTS$DB_KEY;
 ```
 
 To search for two fields at once, we use the index `IDX_PRODUCT_ID_2_EN`, in which the fields `PRODUCT_NAME` and `ABOUT_PRODUCT` were specified during creation.
@@ -497,8 +499,9 @@ SELECT
   P.PRODUCT_ID,
   P.PRODUCT_NAME,
   P.ABOUT_PRODUCT
-FROM FTS$SEARCH('IDX_PRODUCT_ID_2_EN', 'Transformers Bumblebee') FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_ID_2_EN', 'Transformers Bumblebee') FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 ```
 
 To explain the search results, set the last parameter to TRUE.
@@ -510,8 +513,9 @@ SELECT
   P.PRODUCT_NAME,
   P.ABOUT_PRODUCT,
   FTS.FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_ID_2_EN', 'Transformers Bumblebee', 5, TRUE) FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_ID_2_EN', 'Transformers Bumblebee', 5, TRUE) FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 ```
 
 The `FTS$EXPLANATION` field will contain an explanation of the result.
@@ -563,8 +567,9 @@ SELECT
   P.PRODUCT_NAME,
   P.ABOUT_PRODUCT,
   FTS.FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_ID_2X_EN', 'Transformers Bumblebee', 5, TRUE) FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_ID_2X_EN', 'Transformers Bumblebee', 5, TRUE) FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 ```
 
 ```
@@ -626,8 +631,9 @@ SELECT
   P.PRODUCT_NAME,
   P.ABOUT_PRODUCT,
   FTS.FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_ID_2_EN', '(PRODUCT_NAME: Transformers Bumblebee) AND (ABOUT_PRODUCT: Polyester)', 5, TRUE) FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_ID_2_EN', '(PRODUCT_NAME: Transformers Bumblebee) AND (ABOUT_PRODUCT: Polyester)', 5, TRUE) FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 ```
 
 Note: Lucene, like Firebird, supports delimited fields. It is strongly discouraged to use spaces and other special characters in field names, 
@@ -902,9 +908,9 @@ AS
 SELECT
     PC.PRODUCT_UUID
   , LIST(C.CATEGORY_NAME, ' | ') AS CATEGORIES
-FROM PRODUCT_CATEGORIES PC
-JOIN CATEGORIES C
-     ON C.ID = PC.CATEGORY_ID
+FROM 
+  PRODUCT_CATEGORIES PC
+  JOIN CATEGORIES C ON C.ID = PC.CATEGORY_ID
 GROUP BY 1
 ;
 ```
@@ -933,9 +939,10 @@ SELECT
   P.PRODUCT_NAME,
   PC.CATEGORIES,
   FTS.FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_CATEGORIES', '"Toys & Games"') FTS
-JOIN V_PRODUCT_CATEGORIES PC ON PC.PRODUCT_UUID = FTS.FTS$UUID
-JOIN PRODUCTS P ON P.PRODUCT_UUID = PC.PRODUCT_UUID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_CATEGORIES', '"Toys & Games"') FTS
+  JOIN V_PRODUCT_CATEGORIES PC ON PC.PRODUCT_UUID = FTS.FTS$UUID
+  JOIN PRODUCTS P ON P.PRODUCT_UUID = PC.PRODUCT_UUID;
 ```
 
 ## Text analysis
@@ -949,7 +956,8 @@ In order to find out which terms are included in the index, you can use the stor
 ```sql
 PROCEDURE FTS$ANALYZE (
     FTS$TEXT     BLOB SUB_TYPE TEXT CHARACTER SET UTF8,
-    FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL DEFAULT 'STANDARD')
+    FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL DEFAULT 'STANDARD'
+)
 RETURNS (
     FTS$TERM VARCHAR(8191) CHARACTER SET UTF8
 )
@@ -1078,9 +1086,11 @@ The procedure is described as
       FTS$FRAGMENT_SIZE SMALLINT NOT NULL DEFAULT 512,
       FTS$MAX_NUM_FRAGMENTS INTEGER NOT NULL DEFAULT 10,
       FTS$LEFT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '<b>',
-      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>')
+      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>'
+  )
   RETURNS (
-      FTS$FRAGMENT VARCHAR(8191) CHARACTER SET UTF8);
+      FTS$FRAGMENT VARCHAR(8191) CHARACTER SET UTF8
+  );
 ```
 
 The input parameters of the procedure `FTS$HIGHLIGHTER.FTS$BEST_FRAGMENTS` are identical to the parameters of 
@@ -1097,30 +1107,26 @@ SELECT
     BOOKS.TITLE
   , BOOKS.CONTENT
   , F.FTS$FRAGMENT
-FROM BOOKS
-LEFT JOIN FTS$HIGHLIGHTER.FTS$BEST_FRAGMENTS(
-  BOOKS.CONTENT,
-  'friendly',
-  'ENGLISH'
-) F ON TRUE
+FROM 
+  BOOKS
+  LEFT JOIN FTS$HIGHLIGHTER.FTS$BEST_FRAGMENTS(
+    BOOKS.CONTENT,
+    'friendly',
+    'ENGLISH'
+  ) F ON TRUE
 WHERE BOOKS.ID = 8
 ```
 
 ## Keeping data up-to-date in full-text indexes
 
-There are several ways to keep full-text indexes up-to- date:
+There are several ways to keep full-text indexes up-to-date:
 
 1. Periodically call the procedure `FTS$MANAGEMENT.FTS$REBUILD_INDEX` for the specified index.
 This method completely rebuilds the full-text index. In this case, all records of the table or view are read
 for which the index was created.
 
-2. You can maintain full-text indexes using triggers and calling one of the `FTS$LOG_BY_ID` procedures inside them,
-`FTS$LOG_BY_UUID` or `FTS$LOG_BY_DBKEY`. Which of the procedures to call
-depends on which type of field is selected as the key (integer, UUID (GIUD) or `RDB$DB_KEY`).
-When calling these procedures, the change record is added to a special table `FTS$LOG` (change log).
-Changes from the log are transferred to full-text indexes by calling the procedure `FTS$UPDATE_INDEXES`.
-The call to this procedure must be done in a separate script, which can be placed in the task scheduler (Windows)
-or cron (Linux) with some frequency, for example 5 minutes.
+2. Full-text indexes can be maintained using triggers. When these triggers are triggered, a record of the change is added to a special table `FTS$LOG` (change log).
+Changes from the log are transferred to full-text indexes by calling the `FTS$UPDATE_INDEXES` procedure. This procedure must be called in a separate script, which can be set in the task scheduler (Windows) or cron (Linux) with some frequency, for example, 5 minutes.
 
 3. Delayed updating of full-text indexes, using FirebirdStreaming technology. In this case, a special
 service reads the replication logs and extracts from them the information necessary to update the full-text indexes.
@@ -1137,18 +1143,38 @@ Rules for writing triggers to support full-text indexes:
 1. In the trigger, it is necessary to check all fields that participate in the full-text index.
 The field validation conditions must be combined via `OR`.
 
-2. For the `INSERT` operation, it is necessary to check all fields included in full-text indexes whose value is different
-from `NULL`. If this condition is met, then one of the procedures must be performed
-`FTS$LOG_BY_DBKEY('<table name>', NEW.RDB$DB_KEY, 'I');` or `FTS$LOG_BY_ID('<table name>', NEW.<key field>, 'I')`
-or `FTS$LOG_BY_UUID('<table name>', NEW.<key field>, 'I')`.
+2. For the `INSERT` operation, it is necessary to check all fields included in full-text indexes whose value differs from `NULL`. If this condition is met, then it is necessary to execute one of the queries depending on the type of the key field
 
-3. For the `UPDATE` operation, it is necessary to check all fields included in full-text indexes whose value has changed.
-If this condition is met, then the procedure `FTS$LOG_BY_DBKEY('<table name>', OLD.RDB$DB_KEY, 'U');`
-or `FTS$LOG_BY_ID('<table name>', OLD.<key field>, 'U')`or `FTS$LOG_BY_UUID('<table name>', OLD.<key field>, 'U')`.
+```sql
+-- for keys INTEGER or BIGINT types
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_ID, FTS$CHANGE_TYPE) VALUES('<table_name>', NEW.<key_field_name>, 'I');
+-- for keys RDB$DB_KEY type
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$DB_KEY, FTS$CHANGE_TYPE) VALUES('<table_name>', NEW.<key_field_name>, 'I');
+-- for keys UUID type
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('<table_name>', NEW.<key_field_name>, 'I');
+```
 
-4. For the `DELETE` operation, it is necessary to check all fields included in full-text indexes whose value is different
-from `NULL`. If this condition is met, then it is necessary to perform the procedure
-`FTS$LOG_CHANGE('<table name>', OLD.RDB$DB_KEY, 'D');`.
+3. For the `UPDATE` operation, it is necessary to check all fields included in the full-text indexes whose value has changed. If this condition is met, then it is necessary to execute one of the queries depending on the type of the key field.
+
+```sql
+-- for keys INTEGER or BIGINT types
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_ID, FTS$CHANGE_TYPE) VALUES('<table_name>', OLD.<key_field_name>, 'U');
+-- for keys RDB$DB_KEY type
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$DB_KEY, FTS$CHANGE_TYPE) VALUES('<table_name>', OLD.<key_field_name>, 'U');
+-- for keys UUID type
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('<table_name>', OLD.<key_field_name>, 'U');
+```
+
+4. For the `DELETE` operation, it is necessary to check all fields included in the full-text indexes whose value differs from `NULL`. If this condition is met, then it is necessary to execute one of the queries depending on the type of the key field.
+
+```sql
+-- for keys INTEGER or BIGINT types
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_ID, FTS$CHANGE_TYPE) VALUES('<table_name>', OLD.<key_field_name>, 'D');
+-- for keys RDB$DB_KEY type
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$DB_KEY, FTS$CHANGE_TYPE) VALUES('<table_name>', OLD.<key_field_name>, 'D');
+-- для for keys UUID type
+INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('<table_name>', OLD.<key_field_name>, 'D');
+```
 
 To facilitate the task of writing such triggers, there is a special package `FTS$TRIGGER_HELPER`, which
 contains procedures for generating trigger source texts. So for example, in order to generate triggers
@@ -1156,8 +1182,9 @@ to support full-text indexes created for the `PRODUCTS` table, you need to run t
 
 ```sql
 SELECT
-    FTS$TRIGGER_SCRIPT
-FROM FTS$TRIGGER_HELPER.FTS$MAKE_TRIGGERS('PRODUCTS', TRUE)
+  FTS$TRIGGER_SCRIPT
+FROM 
+  FTS$TRIGGER_HELPER.FTS$MAKE_TRIGGERS('PRODUCTS', TRUE)
 ```
 
 This query will return the following trigger text for all created FTS indexes on the `PRODUCTS` table:
@@ -1171,27 +1198,27 @@ BEGIN
   /* Block for key PRODUCT_ID */
   IF (INSERTING AND (NEW."ABOUT_PRODUCT" IS NOT NULL
       OR NEW."PRODUCT_NAME" IS NOT NULL)) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_ID('PRODUCTS', NEW."PRODUCT_ID", 'I');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_ID, FTS$CHANGE_TYPE) VALUES('PRODUCTS', NEW."PRODUCT_ID", 'I');
   IF (UPDATING AND (NEW."ABOUT_PRODUCT" IS DISTINCT FROM OLD."ABOUT_PRODUCT"
       OR NEW."PRODUCT_NAME" IS DISTINCT FROM OLD."PRODUCT_NAME")) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_ID('PRODUCTS', OLD."PRODUCT_ID", 'U');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_ID, FTS$CHANGE_TYPE) VALUES('PRODUCTS', OLD."PRODUCT_ID", 'U');
   IF (DELETING AND (OLD."ABOUT_PRODUCT" IS NOT NULL
       OR OLD."PRODUCT_NAME" IS NOT NULL)) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_ID('PRODUCTS', OLD."PRODUCT_ID", 'D');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_ID, FTS$CHANGE_TYPE) VALUES('PRODUCTS', OLD."PRODUCT_ID", 'D');
   /* Block for key PRODUCT_UUID */
   IF (INSERTING AND (NEW."PRODUCT_NAME" IS NOT NULL)) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_UUID('PRODUCTS', NEW."PRODUCT_UUID", 'I');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('PRODUCTS', NEW."PRODUCT_UUID", 'I');
   IF (UPDATING AND (NEW."PRODUCT_NAME" IS DISTINCT FROM OLD."PRODUCT_NAME")) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_UUID('PRODUCTS', OLD."PRODUCT_UUID", 'U');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('PRODUCTS', OLD."PRODUCT_UUID", 'U');
   IF (DELETING AND (OLD."PRODUCT_NAME" IS NOT NULL)) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_UUID('PRODUCTS', OLD."PRODUCT_UUID", 'D');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('PRODUCTS', OLD."PRODUCT_UUID", 'D');
   /* Block for key RDB$DB_KEY */
   IF (INSERTING AND (NEW."PRODUCT_NAME" IS NOT NULL)) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_DBKEY('PRODUCTS', NEW.RDB$DB_KEY, 'I');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$DB_KEY, FTS$CHANGE_TYPE) VALUES('PRODUCTS', NEW.RDB$DB_KEY, 'I');
   IF (UPDATING AND (NEW."PRODUCT_NAME" IS DISTINCT FROM OLD."PRODUCT_NAME")) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_DBKEY('PRODUCTS', OLD.RDB$DB_KEY, 'U');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$DB_KEY, FTS$CHANGE_TYPE) VALUES('PRODUCTS', OLD.RDB$DB_KEY, 'U');
   IF (DELETING AND (OLD."PRODUCT_NAME" IS NOT NULL)) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_DBKEY('PRODUCTS', OLD.RDB$DB_KEY, 'D');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$DB_KEY, FTS$CHANGE_TYPE) VALUES('PRODUCTS', OLD.RDB$DB_KEY, 'D');
 END
 ```
 
@@ -1222,17 +1249,17 @@ POSITION 100
 AS
 BEGIN
   IF (INSERTING) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_UUID('V_PRODUCT_CATEGORIES', NEW.PRODUCT_UUID, 'I');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('V_PRODUCT_CATEGORIES', NEW.PRODUCT_UUID, 'I');
 
   IF (UPDATING AND (NEW.PRODUCT_UUID <> OLD.PRODUCT_UUID
       OR NEW.CATEGORY_ID <> OLD.CATEGORY_ID)) THEN
   BEGIN
-    EXECUTE PROCEDURE FTS$LOG_BY_UUID('V_PRODUCT_CATEGORIES', OLD.PRODUCT_UUID, 'D');
-    EXECUTE PROCEDURE FTS$LOG_BY_UUID('V_PRODUCT_CATEGORIES', NEW.PRODUCT_UUID, 'I');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('V_PRODUCT_CATEGORIES', OLD.PRODUCT_UUID, 'D');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('V_PRODUCT_CATEGORIES', NEW.PRODUCT_UUID, 'I');
   END
 
   IF (DELETING) THEN
-    EXECUTE PROCEDURE FTS$LOG_BY_UUID('V_PRODUCT_CATEGORIES', OLD.PRODUCT_UUID, 'D');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('V_PRODUCT_CATEGORIES', OLD.PRODUCT_UUID, 'D');
 END
 ^
 
@@ -1251,7 +1278,7 @@ BEGIN
     WHERE CATEGORIES.CATEGORY_NAME = OLD.CATEGORY_NAME
     INTO PRODUCT_UUID;
 
-    EXECUTE PROCEDURE FTS$LOG_BY_UUID('V_PRODUCT_CATEGORIES', :PRODUCT_UUID, 'U');
+    INSERT INTO FTS$LOG(FTS$RELATION_NAME, FTS$REC_UUID, FTS$CHANGE_TYPE) VALUES('V_PRODUCT_CATEGORIES', :PRODUCT_UUID, 'U');
   END
 END
 END
@@ -1278,17 +1305,18 @@ the current database are located.
   DETERMINISTIC;
 ```
 
-#### Procedure FTS$MANAGEMENT.FTS$ANALYZERS
+#### Procedure FTS$MANAGEMENT.FTS$ALL_ANALYZERS
 
-The procedure `FTS$MANAGEMENT.FTS$ANALYZERS` returns a list of available analyzers.
+The procedure `FTS$MANAGEMENT.FTS$ALL_ANALYZERS` returns a list of available analyzers.
 
 ```sql
-  PROCEDURE FTS$ANALYZERS
+  PROCEDURE FTS$ALL_ANALYZERS
   RETURNS (
       FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8,
       FTS$BASE_ANALYZER VARCHAR(63) CHARACTER SET UTF8,
       FTS$STOP_WORDS_SUPPORTED BOOLEAN,
-      FTS$SYSTEM_FLAG BOOLEAN);
+      FTS$SYSTEM_FLAG BOOLEAN
+  );
 ```
 
 Output parameters:
@@ -1306,7 +1334,8 @@ The `FTS$MANAGEMENT.FTS$CREATE_ANALYZER` procedure creates a new analyzer based 
   PROCEDURE FTS$CREATE_ANALYZER (
       FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
       FTS$BASE_ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8 DEFAULT NULL);
+      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8 DEFAULT NULL
+  );
 ```
 
 Input parameters:
@@ -1321,7 +1350,8 @@ The procedure `FTS$MANAGEMENT.FTS$DROP_ANALYZER` drops a custom analyzer.
 
 ```sql
   PROCEDURE FTS$DROP_ANALYZER (
-      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ```
 
 Input parameters:
@@ -1336,7 +1366,8 @@ The procedure `FTS$MANAGEMENT.FTS$ANALYZER_STOP_WORDS` returns a list of stop wo
   PROCEDURE FTS$ANALYZER_STOP_WORDS (
       FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
   RETURNS (
-      FTS$WORD VARCHAR(63) CHARACTER SET UTF8);
+      FTS$WORD VARCHAR(63) CHARACTER SET UTF8
+  );
 ```
 
 Input parameters:
@@ -1353,13 +1384,14 @@ The procedure `FTS$MANAGEMENT.FTS$ADD_STOP_WORD` adds a stop word to the custom 
 
 ```sql
   PROCEDURE FTS$ADD_STOP_WORD (
-      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$WORD VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$ANALYZER_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
+      FTS$WORD VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ```
 
 Input parameters:
 
-- FTS$ANALYZER - analyzer name;
+- FTS$ANALYZER_NAME - analyzer name;
 - FTS$WORD - stop word.
 
 #### Procedure FTS$MANAGEMENT.FTS$DROP_STOP_WORD
@@ -1368,13 +1400,14 @@ The procedure `FTS$MANAGEMENT.FTS$DROP_STOP_WORD` removes a stop word from the c
 
 ```sql
   PROCEDURE FTS$DROP_STOP_WORD (
-      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$WORD VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$ANALYZER_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
+      FTS$WORD VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ```
 
 Входные параметры:
 
-- FTS$ANALYZER - analyzer name;
+- FTS$ANALYZER_NAME - analyzer name;
 - FTS$WORD - stop word.
 
 #### Procedure FTS$MANAGEMENT.FTS$CREATE_INDEX
@@ -1387,7 +1420,8 @@ The procedure `FTS$MANAGEMENT.FTS$CREATE_INDEX` creates a new full-text index.
       FTS$RELATION_NAME  VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
       FTS$ANALYZER       VARCHAR(63) CHARACTER SET UTF8 DEFAULT 'STANDARD',
       FTS$KEY_FIELD_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL,
-      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8 DEFAULT NULL);
+      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8 DEFAULT NULL
+  );
 ```
 
 Input parameters:
@@ -1404,7 +1438,8 @@ The procedure `FTS$MANAGEMENT.FTS$DROP_INDEX` deletes the full-text index.
 
 ```sql
   PROCEDURE FTS$DROP_INDEX (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ```
 
 Input parameters:
@@ -1418,7 +1453,8 @@ The procedure `FTS$MANAGEMENT.SET_INDEX_ACTIVE` allows you to make the index act
 ```sql
   PROCEDURE FTS$SET_INDEX_ACTIVE (
       FTS$INDEX_NAME   VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$INDEX_ACTIVE BOOLEAN NOT NULL);
+      FTS$INDEX_ACTIVE BOOLEAN NOT NULL
+  );
 ```
 
 Input parameters:
@@ -1433,7 +1469,8 @@ The procedure `FTS$MANAGEMENT.FTS$COMMENT_ON_INDEX` adds or deletes a user comme
 ```sql
   PROCEDURE FTS$COMMENT_ON_INDEX (
       FTS$INDEX_NAME  VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8);
+      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8
+  );
 ```
 
 Input parameters:
@@ -1449,7 +1486,8 @@ The procedure `FTS$MANAGEMENT.FTS$ADD_INDEX_FIELD` adds a new field to the full-
   PROCEDURE FTS$ADD_INDEX_FIELD (
       FTS$INDEX_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
       FTS$FIELD_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$BOOST         DOUBLE PRECISION DEFAULT NULL);
+      FTS$BOOST         DOUBLE PRECISION DEFAULT NULL
+  );
 ```
 
 Input parameters:
@@ -1465,7 +1503,8 @@ The procedure `FTS$MANAGEMENT.FTS$DROP_INDEX_FIELD` removes the field from the f
 ```sql
   PROCEDURE FTS$DROP_INDEX_FIELD (
       FTS$INDEX_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$FIELD_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$FIELD_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ```
 
 Input parameters:
@@ -1481,7 +1520,8 @@ The procedure `FTS$MANAGEMENT.FTS$SET_INDEX_FIELD_BOOST` sets the significance c
   PROCEDURE FTS$SET_INDEX_FIELD_BOOST (
       FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
       FTS$FIELD_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$BOOST DOUBLE PRECISION);
+      FTS$BOOST DOUBLE PRECISION
+  );
 ```
 
 Input parameters:
@@ -1500,7 +1540,8 @@ The procedure `FTS$MANAGEMENT.FTS$REBUILD_INDEX` rebuilds the full-text index.
 
 ```sql
   PROCEDURE FTS$REBUILD_INDEX (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ```
 
 Input parameters:
@@ -1513,7 +1554,8 @@ The procedure `FTS$MANAGEMENT.FTS$REINDEX_TABLE` rebuilds all full-text indexes 
 
 ```sql
   PROCEDURE FTS$REINDEX_TABLE (
-      FTS$RELATION_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$RELATION_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ```
 
 Input parameters:
@@ -1603,7 +1645,8 @@ The `FTS$ANALYZE` procedure analyzes the text according to the given analyzer an
 ```sql
 PROCEDURE FTS$ANALYZE (
     FTS$TEXT     BLOB SUB_TYPE TEXT CHARACTER SET UTF8,
-    FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL DEFAULT 'STANDARD')
+    FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL DEFAULT 'STANDARD'
+)
 RETURNS (
     FTS$TERM VARCHAR(8191) CHARACTER SET UTF8
 )
@@ -1617,72 +1660,6 @@ Input parameters:
 Output parameters:
 
 - FTS$TERM - term.
-
-### Procedure FTS$LOG_BY_ID
-
-The procedure `FTS$LOG_BY_ID` adds a record of a change in one of the fields included in the full-text indexes
-built on the table to the change log `FTS$LOG`, on the basis of which the full-text indexes will be updated.
-This procedure should be used if an integer field is used as the primary key. Such keys
-are often generated using generators/sequences.
-
-```sql
-PROCEDURE FTS$LOG_BY_ID (
-    FTS$RELATION_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-    FTS$ID            BIGINT NOT NULL,
-    FTS$CHANGE_TYPE   FTS$D_CHANGE_TYPE NOT NULL
-)
-```
-
-Input parameters:
-
-- FTS$RELATION_NAME - the name of the table for which the change record is added;
-- FTS$ID - value of the key field;
-- FTS$CHANGE_TYPE - type of change (I - INSERT, U - UPDATE, D - DELETE).
-
-### Procedure FTS$LOG_BY_UUID
-
-The procedure `FTS$LOG_BY_UUID` adds a record of a change in one of the fields included in the full-text indexes
-built on the table to the change log `FTS$LOG`, on the basis of which the full-text indexes will be updated.
-This procedure should be used if a UUID (GUID) is used as the primary key. Such keys
-are often generated using the `GEN_UUID` function.
-
-```sql
-PROCEDURE FTS$LOG_BY_UUID (
-    FTS$RELATION_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-    FTS$UUID          CHAR(16) CHARACTER SET OCTETS NOT NULL,
-    FTS$CHANGE_TYPE   FTS$D_CHANGE_TYPE NOT NULL
-)
-```
-
-Input parameters:
-
-- FTS$RELATION_NAME - the name of the table for which the change record is added;
-- FTS$UUID - value of the key field;
-- FTS$CHANGE_TYPE - type of change (I - INSERT, U - UPDATE, D - DELETE).
-
-### Procedure FTS$LOG_BY_DBKEY
-
-The procedure `FTS$LOG_BY_DBKEY` adds a record of a change in one of the fields included in the full-text indexes
-built on the table to the change log `FTS$LOG`, on the basis of which the full-text indexes will be updated.
-This procedure should be used if the pseudo field `RDB$DB_KEY` is used as the primary key.
-
-```sql
-PROCEDURE FTS$LOG_BY_DBKEY (
-    FTS$RELATION_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-    FTS$DBKEY         CHAR(8) CHARACTER SET OCTETS NOT NULL,
-    FTS$CHANGE_TYPE   FTS$D_CHANGE_TYPE NOT NULL
-)
-```
-
-Input parameters:
-
-- FTS$RELATION_NAME - the name of the table for which the change record is added;
-- FTS$DBKEY - value of the pseudo field `RDB$DB_KEY`;
-- FTS$CHANGE_TYPE - type of change (I - INSERT, U - UPDATE, D - DELETE).
-
-### Procedure FTS$CLEAR_LOG
-
-The procedure `FTS$CLEAR_LOG` clears the change log `FTS$LOG`, based on which the full-text indexes are updated.
 
 ### Procedure FTS$UPDATE_INDEXES
 
@@ -1707,7 +1684,8 @@ and highlights the terms found in it.
       FTS$FIELD_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL,
       FTS$FRAGMENT_SIZE SMALLINT NOT NULL DEFAULT 512,
       FTS$LEFT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '<b>',
-      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>')
+      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>'
+  )
   RETURNS VARCHAR(8191) CHARACTER SET UTF8;
 ```
 
@@ -1735,9 +1713,11 @@ and highlights the terms found in them.
       FTS$FRAGMENT_SIZE SMALLINT NOT NULL DEFAULT 512,
       FTS$MAX_NUM_FRAGMENTS INTEGER NOT NULL DEFAULT 10,
       FTS$LEFT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '<b>',
-      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>')
+      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>'
+  )
   RETURNS (
-      FTS$FRAGMENT VARCHAR(8191) CHARACTER SET UTF8);
+      FTS$FRAGMENT VARCHAR(8191) CHARACTER SET UTF8
+  );
 ```
 
 Input parameters:
@@ -1900,7 +1880,8 @@ The procedure `FTS$STATISTICS.FTS$INDEX_STATISTICS` returns low-level informatio
 
 ```sql
   PROCEDURE FTS$INDEX_STATISTICS (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
   RETURNS (
       FTS$ANALYZER         VARCHAR(63) CHARACTER SET UTF8,
       FTS$INDEX_STATUS     TYPE OF FTS$D_INDEX_STATUS,
@@ -1911,7 +1892,8 @@ The procedure `FTS$STATISTICS.FTS$INDEX_STATISTICS` returns low-level informatio
       FTS$NUM_DOCS         INTEGER,
       FTS$NUM_DELETED_DOCS INTEGER,
       FTS$NUM_FIELDS       SMALLINT,
-      FTS$INDEX_SIZE       INTEGER);
+      FTS$INDEX_SIZE       INTEGER
+  );
 ```
 
 Input parameters:
@@ -1951,7 +1933,8 @@ The procedure `FTS$STATISTICS.FTS$INDICES_STATISTICS` returns low-level informat
       FTS$NUM_DOCS         INTEGER,
       FTS$NUM_DELETED_DOCS INTEGER,
       FTS$NUM_FIELDS       SMALLINT,
-      FTS$INDEX_SIZE       INTEGER);
+      FTS$INDEX_SIZE       INTEGER
+  );
 ```
 
 Output parameters:
@@ -1978,7 +1961,8 @@ Here the segment is defined from the Lucene perspective.
 
 ```sql
   PROCEDURE FTS$INDEX_SEGMENT_INFOS (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
   RETURNS (
       FTS$SEGMENT_NAME      VARCHAR(63) CHARACTER SET UTF8,
       FTS$DOC_COUNT         INTEGER,
@@ -1986,7 +1970,8 @@ Here the segment is defined from the Lucene perspective.
       FTS$USE_COMPOUND_FILE BOOLEAN,
       FTS$HAS_DELETIONS     BOOLEAN,
       FTS$DEL_COUNT         INTEGER,
-      FTS$DEL_FILENAME      VARCHAR(255) CHARACTER SET UTF8);
+      FTS$DEL_FILENAME      VARCHAR(255) CHARACTER SET UTF8
+  );
 ```
 
 Input parameters:
@@ -2009,9 +1994,11 @@ The procedure `FTS$STATISTICS.FTS$INDEX_FIELDS` returns the names of the interna
 
 ```sql
   PROCEDURE FTS$INDEX_FIELDS (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
   RETURNS (
-      FTS$FIELD_NAME VARCHAR(127) CHARACTER SET UTF8);
+      FTS$FIELD_NAME VARCHAR(127) CHARACTER SET UTF8
+  );
 ```
    
 Input parameters:
@@ -2028,11 +2015,13 @@ The procedure `FTS$STATISTICS.FTS$INDEX_FILES` returns information about index f
 
 ```sql
   PROCEDURE FTS$INDEX_FILES (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
   RETURNS (
       FTS$FILE_NAME VARCHAR(127) CHARACTER SET UTF8,
       FTS$FILE_TYPE VARCHAR(63) CHARACTER SET UTF8,
-      FTS$FILE_SIZE INTEGER);
+      FTS$FILE_SIZE INTEGER
+  );
 ```
    
 Input parameters:
@@ -2052,7 +2041,8 @@ The procedure `FTS$STATISTICS.FTS$INDEX_FIELD_INFOS` returns information about t
 ```sql
   PROCEDURE FTS$INDEX_FIELD_INFOS (
       FTS$INDEX_NAME   VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$SEGMENT_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL)
+      FTS$SEGMENT_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL
+  )
   RETURNS (
       FTS$FIELD_NAME                      VARCHAR(127) CHARACTER SET UTF8,
       FTS$FIELD_NUMBER                    SMALLINT,
@@ -2062,7 +2052,8 @@ The procedure `FTS$STATISTICS.FTS$INDEX_FIELD_INFOS` returns information about t
       FTS$STORE_POSITION_TERM_VECTOR      BOOLEAN,
       FTS$OMIT_NORMS                      BOOLEAN,
       FTS$OMIT_TERM_FREQ_AND_POS          BOOLEAN,
-      FTS$STORE_PAYLOADS                  BOOLEAN);
+      FTS$STORE_PAYLOADS                  BOOLEAN
+  );
 ```
    
 Input parameters:
@@ -2083,3 +2074,30 @@ Output parameters:
 - FTS$OMIT_TERM_FREQ_AND_POS - reserved;
 - FTS$STORE_PAYLOADS - reserved.
 
+
+#### Procedure FTS$STATISTICS.FTS$INDEX_TERMS
+
+The `FTS$STATISTICS.FTS$INDEX_TERMS` procedure returns the terms (words) contained in the index.
+
+This procedure is convenient for debugging a full-text index.
+
+```sql
+  PROCEDURE FTS$INDEX_TERMS (
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
+  RETURNS (
+      FTS$FIELD_NAME VARCHAR(63) CHARACTER SET UTF8,
+      FTS$TERM       VARCHAR(8191) CHARACTER SET UTF8,
+      FTS$DOC_FREQ   INTEGER
+  );
+```
+
+Input parameters:
+
+- FTS$INDEX_NAME - index name.
+   
+Output parameters:
+
+- FTS$FIELD_NAME - field name;
+- FTS$TERM - term (word);
+- FTS$DOC_FREQ - the number of documents containing a given term (word).

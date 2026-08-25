@@ -14,8 +14,9 @@
  *  Contributor(s): ______________________________________.
 **/
 
-#include "LuceneHeaders.h"
 #include <list>
+
+#include "LuceneHeaders.h"
 
 namespace LuceneUDR 
 {
@@ -39,9 +40,9 @@ namespace LuceneUDR
 
         std::list<Lucene::String> getIndexFileNames();
 
-        size_t getIndexSize()
+        int64_t getIndexSize()
         {
-            size_t size = 0;
+            int64_t size = 0;
             for (const auto& fileName : getIndexFileNames())
             {
                 size += m_ftsIndexDir->fileLength(fileName);
@@ -49,7 +50,7 @@ namespace LuceneUDR
             return size;
         }
 
-        size_t getFileSize(const Lucene::String& fileName)
+        int64_t getFileSize(const Lucene::String& fileName)
         {
             return m_ftsIndexDir->fileLength(fileName);
         }

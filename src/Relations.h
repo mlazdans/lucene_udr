@@ -14,10 +14,11 @@
  *  Contributor(s): ______________________________________.
 **/
 
-#include "LuceneUdr.h"
-#include <string>
 #include <list>
 #include <memory>
+#include <string>
+
+#include "LuceneUdr.h"
 
 namespace FTSMetadata
 {
@@ -30,35 +31,51 @@ namespace FTSMetadata
        RT_GTT_DELETE_ROWS
     };
 
-    class RelationInfo final
+    struct RelationInfo final
     {
-    public:
-        std::string relationName{ "" };
+        std::string relationName;
         RelationType relationType{ RelationType::RT_REGULAR };
         bool systemFlag = false;
-    public:
+    
         RelationInfo() = default;
+        RelationInfo(std::string_view a_RelationName, RelationType a_RelationType, bool a_SystemFlag)
+            : relationName(a_RelationName)
+            , relationType(a_RelationType)
+            , systemFlag(a_SystemFlag)
+        {
+        }
 
         bool findKeyFieldSupported() const {
             return (relationType == RelationType::RT_REGULAR || relationType == RelationType::RT_GTT_PRESERVE_ROWS || relationType == RelationType::RT_GTT_DELETE_ROWS);
         }
     };
-    using RelationInfoPtr = std::unique_ptr<RelationInfo>;
 
     class RelationFieldInfo final
     {
     public:
-        std::string relationName{ "" };
-        std::string fieldName{ "" };
-        short  fieldType = 0;
+        std::string relationName;
+        std::string fieldName;
+        short fieldType = 0;
         short fieldLength = 0;
         short charLength = 0;
         short charsetId = 0;
         short fieldSubType = 0;
         short fieldPrecision = 0;
         short fieldScale = 0;
+        bool dbKeyFlag = false;
     public:
         RelationFieldInfo() = default;
+        RelationFieldInfo(
+            std::string_view relationName_,
+            std::string_view fieldName_,
+            short fieldType_,
+            short fieldLength_,
+            short charLength_,
+            short charsetId_,
+            short fieldSubType_,
+            short fieldPrecision_,
+            short fieldScale_
+       );
 
         bool isInt() const {
             return (fieldScale == 0) && (fieldType == 7 || fieldType == 8 || fieldType == 16 || fieldType == 26);
@@ -80,21 +97,17 @@ namespace FTSMetadata
             return (isBlob() && fieldSubType == 0) || ((isFixedChar() || isVarChar()) && charsetId == 1);
         }
 
-        void initDB_KEYField(const std::string& aRelationName) {
-            relationName = aRelationName;
-            fieldName = "RDB$DB_KEY";
-            fieldType = 14;
-            fieldLength = 8;
-            charLength = 8;
-            charsetId = 1;
-            fieldSubType = 0;
-            fieldPrecision = 0;
-            fieldScale = 0;
+        bool isDbKey() const {
+            return dbKeyFlag;
+        }
+
+        bool ftsKeySupported() const {
+            // Supported types SMALLINT, INTEGER, BIGINT, CHAR(16) CHARACTER SET OCTETS, BINARY(16)
+            return isInt() || (isFixedChar() && isBinary() && fieldLength == 16);
         }
     };
 
-    using RelationFieldInfoPtr = std::unique_ptr<RelationFieldInfo>;
-    using RelationFieldList = std::list<RelationFieldInfoPtr>;
+    using RelationFieldList = std::list<RelationFieldInfo>;
 
     class RelationHelper final
     {
@@ -113,8 +126,6 @@ namespace FTSMetadata
 
         explicit RelationHelper(Firebird::IMaster* master);
 
-        ~RelationHelper();
-
         /// <summary>
         /// Returns information about the relation.
         /// </summary>
@@ -123,16 +134,14 @@ namespace FTSMetadata
         /// <param name="att">Firebird attachment</param>
         /// <param name="tra">Firebird transaction</param>
         /// <param name="sqlDialect">SQL dialect</param>
-        /// <param name="relationInfo">Information about the relation</param>
         /// <param name="relationName">Relation name</param>
         /// 
-        void getRelationInfo(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+        RelationInfo getRelationInfo(
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            RelationInfoPtr& relationInfo,
-            const std::string& relationName
+            std::string_view relationName
         );
 
         /// <summary>
@@ -147,11 +156,11 @@ namespace FTSMetadata
         /// 
         /// <returns>Returns true if the relation exists, false otherwise.</returns>
         bool relationExists(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string &relationName);
+            std::string_view relationName);
 
         /// <summary>
         /// Returns a list of relations fields.
@@ -162,15 +171,13 @@ namespace FTSMetadata
         /// <param name="tra">Firebird transaction</param>
         /// <param name="sqlDialect">SQL dialect</param>
         /// <param name="relationName">Relation name</param>
-        /// <param name="fields">List of relations fields</param>
         /// 
-        void fillRelationFields(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+        RelationFieldList fillRelationFields(
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& relationName,
-            RelationFieldList& fields
+            std::string_view relationName
         );
 
         /// <summary>
@@ -182,15 +189,13 @@ namespace FTSMetadata
         /// <param name="tra">Firebird transaction</param>
         /// <param name="sqlDialect">SQL dialect</param>
         /// <param name="relationName">Relation name</param>
-        /// <param name="keyFields">List of relations primary key fields</param>
         /// 
-        void fillPrimaryKeyFields(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+        RelationFieldList fillPrimaryKeyFields(
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string& relationName,
-            RelationFieldList& keyFields
+            std::string_view relationName
         );
 
         /// <summary>
@@ -201,18 +206,16 @@ namespace FTSMetadata
         /// <param name="att">Firebird attachment</param>
         /// <param name="tra">Firebird transaction</param>
         /// <param name="sqlDialect">SQL dialect</param>
-        /// <param name="fieldInfo">Information about the field</param>
         /// <param name="relationName">Relation name</param>
         /// <param name="fieldName">Field name</param>
         /// 
-        void getField(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+        RelationFieldInfo getField(
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const RelationFieldInfoPtr& fieldInfo,
-            const std::string& relationName,
-            const std::string& fieldName
+            std::string_view relationName,
+            std::string_view fieldName
         );
 
         /// <summary>
@@ -228,15 +231,15 @@ namespace FTSMetadata
         /// 
         /// <returns>Returns true if the column exists, false otherwise.</returns>
         bool fieldExists(
-            Firebird::ThrowStatusWrapper* const status,
-            Firebird::IAttachment* const att,
-            Firebird::ITransaction* const tra,
+            Firebird::ThrowStatusWrapper* status,
+            Firebird::IAttachment* att,
+            Firebird::ITransaction* tra,
             unsigned int sqlDialect,
-            const std::string &relationName,
-            const std::string &fieldName);
+            std::string_view relationName,
+            std::string_view fieldName);
     };
 
     using RelationHelperPtr = std::unique_ptr<RelationHelper>;
 }
 
-#endif	// FTS_RELATIONS_H
+#endif // FTS_RELATIONS_H

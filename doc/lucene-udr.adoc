@@ -32,15 +32,15 @@ For databases of the 1st SQL dialect, use the script https://github.com/IBSurgeo
 
 You can download ready-made builds for Windows OS using the links:
 
-* https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/LuceneUdr_Win_x64.zip[LuceneUdr_Win_x64.zip]
-* https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/LuceneUdr_Win_x86.zip[LuceneUdr_Win_x86.zip]
+* https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/LuceneUdr_Win_x64.zip[LuceneUdr_Win_x64.zip]
+* https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/LuceneUdr_Win_x86.zip[LuceneUdr_Win_x86.zip]
 
 Under Linux, you can compile the library yourself.
 
 Download the demo database, for which the examples are prepared, using the following links:
 
-* https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/fts_demo_3.0.zip[fts_demo_3.0.zip] - database for Firebird 3.0;
-* https://github.com/IBSurgeon/lucene_udr/releases/download/1.2/fts_demo_4.0.zip[fts_demo_4.0.zip] - database for Firebird 4.0.
+* https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/fts_demo_3.0.zip[fts_demo_3.0.zip] - database for Firebird 3.0;
+* https://github.com/IBSurgeon/lucene_udr/releases/download/1.3/fts_demo_4.0.zip[fts_demo_4.0.zip] - database for Firebird 4.0.
 
 == Building and installing the library under Linux
 
@@ -162,7 +162,7 @@ Analysis is the transformation of known text into smaller, more precise units fo
 
 The text goes through various operations to extract keywords, remove common words and punctuation marks, convert words to lower case, and so on.
 
-The list of available analyzers can be obtained using the `FTS$MANAGEMENT.FTS$ANALYZERS` procedure.
+The list of available analyzers can be obtained using the `FTS$MANAGEMENT.FTS$ALL_ANALYZERS` procedure.
 
 The following analyzers are available by default:
 
@@ -473,7 +473,8 @@ SELECT
   , FTS$UUID
   , FTS$SCORE
   , FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_NAME_EN', 'Transformers Bumblebee')
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_NAME_EN', 'Transformers Bumblebee')
 ----
 
 Output parameters:
@@ -498,23 +499,26 @@ SELECT
   FTS.FTS$SCORE,
   P.PRODUCT_ID,
   P.PRODUCT_NAME
-FROM FTS$SEARCH('IDX_PRODUCT_NAME_EN', 'Transformers Bumblebee') FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_NAME_EN', 'Transformers Bumblebee') FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 
 SELECT
   FTS.FTS$SCORE,
   P.PRODUCT_UUID,
   P.PRODUCT_NAME
-FROM FTS$SEARCH('IDX_PRODUCT_UUID_EN', 'Transformers Bumblebee') FTS
-JOIN PRODUCTS P ON P.PRODUCT_UUID = FTS.FTS$UUID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_UUID_EN', 'Transformers Bumblebee') FTS
+  JOIN PRODUCTS P ON P.PRODUCT_UUID = FTS.FTS$UUID;
 
 SELECT
   FTS.FTS$SCORE,
   P.RDB$DB_KEY,
   P.PRODUCT_ID,
   P.PRODUCT_NAME
-FROM FTS$SEARCH('IDX_PRODUCT_DBKEY_EN', 'Transformers Bumblebee') FTS
-JOIN PRODUCTS P ON P.RDB$DB_KEY = FTS.FTS$DB_KEY;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_DBKEY_EN', 'Transformers Bumblebee') FTS
+  JOIN PRODUCTS P ON P.RDB$DB_KEY = FTS.FTS$DB_KEY;
 ----
 
 To search for two fields at once, we use the index `IDX_PRODUCT_ID_2_EN`, in which the fields `PRODUCT_NAME` and `ABOUT_PRODUCT` were specified during creation.
@@ -526,8 +530,9 @@ SELECT
   P.PRODUCT_ID,
   P.PRODUCT_NAME,
   P.ABOUT_PRODUCT
-FROM FTS$SEARCH('IDX_PRODUCT_ID_2_EN', 'Transformers Bumblebee') FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_ID_2_EN', 'Transformers Bumblebee') FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 ----
 
 To explain the search results, set the last parameter to TRUE.
@@ -540,8 +545,9 @@ SELECT
   P.PRODUCT_NAME,
   P.ABOUT_PRODUCT,
   FTS.FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_ID_2_EN', 'Transformers Bumblebee', 5, TRUE) FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_ID_2_EN', 'Transformers Bumblebee', 5, TRUE) FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 ----
 
 The `FTS$EXPLANATION` field will contain an explanation of the result.
@@ -594,8 +600,9 @@ SELECT
   P.PRODUCT_NAME,
   P.ABOUT_PRODUCT,
   FTS.FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_ID_2X_EN', 'Transformers Bumblebee', 5, TRUE) FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_ID_2X_EN', 'Transformers Bumblebee', 5, TRUE) FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 ----
 
 ----
@@ -658,8 +665,9 @@ SELECT
   P.PRODUCT_NAME,
   P.ABOUT_PRODUCT,
   FTS.FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_ID_2_EN', '(PRODUCT_NAME: Transformers Bumblebee) AND (ABOUT_PRODUCT: Polyester)', 5, TRUE) FTS
-JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_ID_2_EN', '(PRODUCT_NAME: Transformers Bumblebee) AND (ABOUT_PRODUCT: Polyester)', 5, TRUE) FTS
+  JOIN PRODUCTS P ON P.PRODUCT_ID = FTS.FTS$ID;
 ----
 
 [NOTE]
@@ -944,9 +952,9 @@ AS
 SELECT
     PC.PRODUCT_UUID
   , LIST(C.CATEGORY_NAME, ' | ') AS CATEGORIES
-FROM PRODUCT_CATEGORIES PC
-JOIN CATEGORIES C
-     ON C.ID = PC.CATEGORY_ID
+FROM 
+  PRODUCT_CATEGORIES PC
+  JOIN CATEGORIES C ON C.ID = PC.CATEGORY_ID
 GROUP BY 1
 ;
 ----
@@ -977,9 +985,10 @@ SELECT
   P.PRODUCT_NAME,
   PC.CATEGORIES,
   FTS.FTS$EXPLANATION
-FROM FTS$SEARCH('IDX_PRODUCT_CATEGORIES', '"Toys & Games"') FTS
-JOIN V_PRODUCT_CATEGORIES PC ON PC.PRODUCT_UUID = FTS.FTS$UUID
-JOIN PRODUCTS P ON P.PRODUCT_UUID = PC.PRODUCT_UUID;
+FROM 
+  FTS$SEARCH('IDX_PRODUCT_CATEGORIES', '"Toys & Games"') FTS
+  JOIN V_PRODUCT_CATEGORIES PC ON PC.PRODUCT_UUID = FTS.FTS$UUID
+  JOIN PRODUCTS P ON P.PRODUCT_UUID = PC.PRODUCT_UUID;
 ----
 
 == Text analysis
@@ -994,9 +1003,11 @@ In order to find out which terms are included in the index, you can use the stor
 ----
 PROCEDURE FTS$ANALYZE (
     FTS$TEXT     BLOB SUB_TYPE TEXT CHARACTER SET UTF8,
-    FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL DEFAULT 'STANDARD')
+    FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL DEFAULT 'STANDARD'
+)
 RETURNS (
-    FTS$TERM VARCHAR(8191) CHARACTER SET UTF8)
+    FTS$TERM VARCHAR(8191) CHARACTER SET UTF8
+)
 ----
 
 The first parameter specifies the text to be analyzed, and the second parameter is the name of the analyzer.
@@ -1033,7 +1044,8 @@ The function is described as
       FTS$FIELD_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL,
       FTS$FRAGMENT_SIZE SMALLINT NOT NULL DEFAULT 512,
       FTS$LEFT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '<b>',
-      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>')
+      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>'
+  )
   RETURNS VARCHAR(8191) CHARACTER SET UTF8;
 ----
 
@@ -1127,9 +1139,11 @@ The procedure is described as
       FTS$FRAGMENT_SIZE SMALLINT NOT NULL DEFAULT 512,
       FTS$MAX_NUM_FRAGMENTS INTEGER NOT NULL DEFAULT 10,
       FTS$LEFT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '<b>',
-      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>')
+      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>'
+  )
   RETURNS (
-      FTS$FRAGMENT VARCHAR(8191) CHARACTER SET UTF8);
+      FTS$FRAGMENT VARCHAR(8191) CHARACTER SET UTF8
+  );
 ----
 
 The input parameters of the procedure `FTS$HIGHLIGHTER.FTS$BEST_FRAGMENTS` are identical to the parameters of
@@ -1147,12 +1161,13 @@ SELECT
     BOOKS.TITLE
   , BOOKS.CONTENT
   , F.FTS$FRAGMENT
-FROM BOOKS
-LEFT JOIN FTS$HIGHLIGHTER.FTS$BEST_FRAGMENTS(
-  BOOKS.CONTENT,
-  'friendly',
-  'ENGLISH'
-) F ON TRUE
+FROM 
+  BOOKS
+  LEFT JOIN FTS$HIGHLIGHTER.FTS$BEST_FRAGMENTS(
+    BOOKS.CONTENT,
+    'friendly',
+    'ENGLISH'
+  ) F ON TRUE
 WHERE BOOKS.ID = 8
 ----
 
@@ -1207,8 +1222,9 @@ to support full-text indexes created for the `PRODUCTS` table, you need to run t
 [source,sql]
 ----
 SELECT
-    FTS$TRIGGER_SCRIPT
-FROM FTS$TRIGGER_HELPER.FTS$MAKE_TRIGGERS('PRODUCTS', TRUE)
+  FTS$TRIGGER_SCRIPT
+FROM 
+  FTS$TRIGGER_HELPER.FTS$MAKE_TRIGGERS('PRODUCTS', TRUE)
 ----
 
 This query will return the following trigger text for all created FTS indexes on the `PRODUCTS` table:
@@ -1334,18 +1350,19 @@ the current database are located.
   DETERMINISTIC;
 ----
 
-==== Procedure FTS$MANAGEMENT.FTS$ANALYZERS
+==== Procedure FTS$MANAGEMENT.FTS$ALL_ANALYZERS
 
-The procedure `FTS$MANAGEMENT.FTS$ANALYZERS` returns a list of available analyzers.
+The procedure `FTS$MANAGEMENT.FTS$ALL_ANALYZERS` returns a list of available analyzers.
 
 [source,sql]
 ----
-  PROCEDURE FTS$ANALYZERS
+  PROCEDURE FTS$ALL_ANALYZERS
   RETURNS (
       FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8,
       FTS$BASE_ANALYZER VARCHAR(63) CHARACTER SET UTF8,
       FTS$STOP_WORDS_SUPPORTED BOOLEAN,
-      FTS$SYSTEM_FLAG BOOLEAN);
+      FTS$SYSTEM_FLAG BOOLEAN
+  );
 ----
 
 Output parameters:
@@ -1365,7 +1382,8 @@ The `FTS$MANAGEMENT.FTS$CREATE_ANALYZER` procedure creates a new analyzer based 
   PROCEDURE FTS$CREATE_ANALYZER (
       FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
       FTS$BASE_ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8 DEFAULT NULL);
+      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8 DEFAULT NULL
+  );
 ----
 
 Input parameters:
@@ -1381,7 +1399,8 @@ The procedure `FTS$MANAGEMENT.FTS$DROP_ANALYZER` drops a custom analyzer.
 [source,sql]
 ----
   PROCEDURE FTS$DROP_ANALYZER (
-      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ----
 
 Input parameters:
@@ -1395,9 +1414,11 @@ The procedure `FTS$MANAGEMENT.FTS$ANALYZER_STOP_WORDS` returns a list of stop wo
 [source,sql]
 ----
   PROCEDURE FTS$ANALYZER_STOP_WORDS (
-      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
+      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
   RETURNS (
-      FTS$WORD VARCHAR(63) CHARACTER SET UTF8);
+      FTS$WORD VARCHAR(63) CHARACTER SET UTF8
+  );
 ----
 
 Input parameters:
@@ -1415,13 +1436,14 @@ The procedure `FTS$MANAGEMENT.FTS$ADD_STOP_WORD` adds a stop word to the custom 
 [source,sql]
 ----
   PROCEDURE FTS$ADD_STOP_WORD (
-      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$WORD VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$ANALYZER_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
+      FTS$WORD VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ----
 
 Input parameters:
 
-* FTS$ANALYZER - analyzer name;
+* FTS$ANALYZER_NAME - analyzer name;
 * FTS$WORD - stop word.
 
 ==== Procedure FTS$MANAGEMENT.FTS$DROP_STOP_WORD
@@ -1431,13 +1453,14 @@ The procedure `FTS$MANAGEMENT.FTS$DROP_STOP_WORD` removes a stop word from the c
 [source,sql]
 ----
   PROCEDURE FTS$DROP_STOP_WORD (
-      FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$WORD VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$ANALYZER_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
+      FTS$WORD VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ----
 
 Входные параметры:
 
-* FTS$ANALYZER - analyzer name;
+* FTS$ANALYZER_NAME - analyzer name;
 * FTS$WORD - stop word.
 
 ==== Procedure FTS$MANAGEMENT.FTS$CREATE_INDEX
@@ -1451,7 +1474,8 @@ The procedure `FTS$MANAGEMENT.FTS$CREATE_INDEX` creates a new full-text index.
       FTS$RELATION_NAME  VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
       FTS$ANALYZER       VARCHAR(63) CHARACTER SET UTF8 DEFAULT 'STANDARD',
       FTS$KEY_FIELD_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL,
-      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8 DEFAULT NULL);
+      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8 DEFAULT NULL
+  );
 ----
 
 Input parameters:
@@ -1469,7 +1493,8 @@ The procedure `FTS$MANAGEMENT.FTS$DROP_INDEX` deletes the full-text index.
 [source,sql]
 ----
   PROCEDURE FTS$DROP_INDEX (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ----
 
 Input parameters:
@@ -1484,7 +1509,8 @@ The procedure `FTS$MANAGEMENT.SET_INDEX_ACTIVE` allows you to make the index act
 ----
   PROCEDURE FTS$SET_INDEX_ACTIVE (
       FTS$INDEX_NAME   VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$INDEX_ACTIVE BOOLEAN NOT NULL);
+      FTS$INDEX_ACTIVE BOOLEAN NOT NULL
+  );
 ----
 
 Input parameters:
@@ -1500,7 +1526,8 @@ The procedure `FTS$MANAGEMENT.FTS$COMMENT_ON_INDEX` adds or deletes a user comme
 ----
   PROCEDURE FTS$COMMENT_ON_INDEX (
       FTS$INDEX_NAME  VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8);
+      FTS$DESCRIPTION BLOB SUB_TYPE TEXT CHARACTER SET UTF8
+  );
 ----
 
 Input parameters:
@@ -1517,7 +1544,8 @@ The procedure `FTS$MANAGEMENT.FTS$ADD_INDEX_FIELD` adds a new field to the full-
   PROCEDURE FTS$ADD_INDEX_FIELD (
       FTS$INDEX_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
       FTS$FIELD_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$BOOST         DOUBLE PRECISION DEFAULT NULL);
+      FTS$BOOST         DOUBLE PRECISION DEFAULT NULL
+  );
 ----
 
 Input parameters:
@@ -1534,7 +1562,8 @@ The procedure `FTS$MANAGEMENT.FTS$DROP_INDEX_FIELD` removes the field from the f
 ----
   PROCEDURE FTS$DROP_INDEX_FIELD (
       FTS$INDEX_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$FIELD_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$FIELD_NAME    VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ----
 
 Input parameters:
@@ -1551,7 +1580,8 @@ The procedure `FTS$MANAGEMENT.FTS$SET_INDEX_FIELD_BOOST` sets the significance c
   PROCEDURE FTS$SET_INDEX_FIELD_BOOST (
       FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
       FTS$FIELD_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$BOOST DOUBLE PRECISION);
+      FTS$BOOST DOUBLE PRECISION
+  );
 ----
 
 Input parameters:
@@ -1571,7 +1601,8 @@ The procedure `FTS$MANAGEMENT.FTS$REBUILD_INDEX` rebuilds the full-text index.
 [source,sql]
 ----
   PROCEDURE FTS$REBUILD_INDEX (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ----
 
 Input parameters:
@@ -1585,7 +1616,8 @@ The procedure `FTS$MANAGEMENT.FTS$REINDEX_TABLE` rebuilds all full-text indexes 
 [source,sql]
 ----
   PROCEDURE FTS$REINDEX_TABLE (
-      FTS$RELATION_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL);
+      FTS$RELATION_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  );
 ----
 
 Input parameters:
@@ -1787,7 +1819,8 @@ and highlights the terms found in it.
       FTS$FIELD_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL,
       FTS$FRAGMENT_SIZE SMALLINT NOT NULL DEFAULT 512,
       FTS$LEFT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '<b>',
-      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>')
+      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>'
+  )
   RETURNS VARCHAR(8191) CHARACTER SET UTF8;
 ----
 
@@ -1816,9 +1849,11 @@ and highlights the terms found in them.
       FTS$FRAGMENT_SIZE SMALLINT NOT NULL DEFAULT 512,
       FTS$MAX_NUM_FRAGMENTS INTEGER NOT NULL DEFAULT 10,
       FTS$LEFT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '<b>',
-      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>')
+      FTS$RIGHT_TAG VARCHAR(50) CHARACTER SET UTF8 NOT NULL DEFAULT '</b>'
+  )
   RETURNS (
-      FTS$FRAGMENT VARCHAR(8191) CHARACTER SET UTF8);
+      FTS$FRAGMENT VARCHAR(8191) CHARACTER SET UTF8
+  );
 ----
 
 Input parameters:
@@ -1998,7 +2033,8 @@ The procedure `FTS$STATISTICS.FTS$INDEX_STATISTICS` returns low-level informatio
       FTS$NUM_DOCS         INTEGER,
       FTS$NUM_DELETED_DOCS INTEGER,
       FTS$NUM_FIELDS       SMALLINT,
-      FTS$INDEX_SIZE       INTEGER);
+      FTS$INDEX_SIZE       INTEGER
+  );
 ----
 
 Input parameters:
@@ -2039,7 +2075,8 @@ The procedure `FTS$STATISTICS.FTS$INDICES_STATISTICS` returns low-level informat
       FTS$NUM_DOCS         INTEGER,
       FTS$NUM_DELETED_DOCS INTEGER,
       FTS$NUM_FIELDS       SMALLINT,
-      FTS$INDEX_SIZE       INTEGER);
+      FTS$INDEX_SIZE       INTEGER
+  );
 ----
 
 Output parameters:
@@ -2067,7 +2104,8 @@ Here the segment is defined from the Lucene perspective.
 [source,sql]
 ----
   PROCEDURE FTS$INDEX_SEGMENT_INFOS (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
   RETURNS (
       FTS$SEGMENT_NAME      VARCHAR(63) CHARACTER SET UTF8,
       FTS$DOC_COUNT         INTEGER,
@@ -2075,7 +2113,8 @@ Here the segment is defined from the Lucene perspective.
       FTS$USE_COMPOUND_FILE BOOLEAN,
       FTS$HAS_DELETIONS     BOOLEAN,
       FTS$DEL_COUNT         INTEGER,
-      FTS$DEL_FILENAME      VARCHAR(255) CHARACTER SET UTF8);
+      FTS$DEL_FILENAME      VARCHAR(255) CHARACTER SET UTF8
+  );
 ----
 
 Input parameters:
@@ -2099,9 +2138,11 @@ The procedure `FTS$STATISTICS.FTS$INDEX_FIELDS` returns the names of the interna
 [source,sql]
 ----
   PROCEDURE FTS$INDEX_FIELDS (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
   RETURNS (
-      FTS$FIELD_NAME VARCHAR(127) CHARACTER SET UTF8);
+      FTS$FIELD_NAME VARCHAR(127) CHARACTER SET UTF8
+  );
 ----
 
 Input parameters:
@@ -2119,11 +2160,13 @@ The procedure `FTS$STATISTICS.FTS$INDEX_FILES` returns information about index f
 [source,sql]
 ----
   PROCEDURE FTS$INDEX_FILES (
-      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL)
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
   RETURNS (
       FTS$FILE_NAME VARCHAR(127) CHARACTER SET UTF8,
       FTS$FILE_TYPE VARCHAR(63) CHARACTER SET UTF8,
-      FTS$FILE_SIZE INTEGER);
+      FTS$FILE_SIZE INTEGER
+  );
 ----
 
 Input parameters:
@@ -2144,7 +2187,8 @@ The procedure `FTS$STATISTICS.FTS$INDEX_FIELD_INFOS` returns information about t
 ----
   PROCEDURE FTS$INDEX_FIELD_INFOS (
       FTS$INDEX_NAME   VARCHAR(63) CHARACTER SET UTF8 NOT NULL,
-      FTS$SEGMENT_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL)
+      FTS$SEGMENT_NAME VARCHAR(63) CHARACTER SET UTF8 DEFAULT NULL
+  )
   RETURNS (
       FTS$FIELD_NAME                      VARCHAR(127) CHARACTER SET UTF8,
       FTS$FIELD_NUMBER                    SMALLINT,
@@ -2154,7 +2198,8 @@ The procedure `FTS$STATISTICS.FTS$INDEX_FIELD_INFOS` returns information about t
       FTS$STORE_POSITION_TERM_VECTOR      BOOLEAN,
       FTS$OMIT_NORMS                      BOOLEAN,
       FTS$OMIT_TERM_FREQ_AND_POS          BOOLEAN,
-      FTS$STORE_PAYLOADS                  BOOLEAN);
+      FTS$STORE_PAYLOADS                  BOOLEAN
+  );
 ----
 
 Input parameters:
@@ -2174,3 +2219,31 @@ Output parameters:
 * FTS$OMIT_NORMS - reserved;
 * FTS$OMIT_TERM_FREQ_AND_POS - reserved;
 * FTS$STORE_PAYLOADS - reserved.
+
+==== Procedure FTS$STATISTICS.FTS$INDEX_TERMS
+
+The `FTS$STATISTICS.FTS$INDEX_TERMS` procedure returns the terms (words) contained in the index.
+
+This procedure is convenient for debugging a full-text index.
+
+[source,sql]
+----
+  PROCEDURE FTS$INDEX_TERMS (
+      FTS$INDEX_NAME VARCHAR(63) CHARACTER SET UTF8 NOT NULL
+  )
+  RETURNS (
+      FTS$FIELD_NAME VARCHAR(63) CHARACTER SET UTF8,
+      FTS$TERM       VARCHAR(8191) CHARACTER SET UTF8,
+      FTS$DOC_FREQ   INTEGER
+  );
+----
+
+Input parameters:
+
+* FTS$INDEX_NAME - index name.
+   
+Output parameters:
+
+* FTS$FIELD_NAME - field name;
+* FTS$TERM - term (word);
+* FTS$DOC_FREQ - the number of documents containing a given term (word).

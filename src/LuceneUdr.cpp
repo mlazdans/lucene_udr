@@ -1,8 +1,5 @@
-#ifndef COMMON_UTILS_H
-#define COMMON_UTILS_H
-
 /**
- *  Common utils.
+ *  Lucene full-text index file helper.
  *
  *  The original code was created by Simonov Denis
  *  for the open source project "IBSurgeon Full Text Search UDR".
@@ -12,14 +9,8 @@
  *
  *  All Rights Reserved.
  *  Contributor(s): ______________________________________.
-**/
+ **/
 
-#include <string>
+#include "LuceneUdr.h"
 
-std::string ltrim(const std::string& s);
-
-std::string rtrim(const std::string& s);
-
-std::string trim(const std::string& s);
-
-#endif
+FB_UDR_IMPLEMENT_ENTRY_POINT
