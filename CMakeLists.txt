@@ -35,6 +35,8 @@ add_compile_definitions(WIN32_LEAN_AND_MEAN)
 ####################################
 add_library(luceneudr SHARED ${luceneudr_sources})
 target_sources(luceneudr PRIVATE
+    "src/AnalyzingMultiFieldQueryParser.cpp"
+    "src/AnalyzingQueryParser.cpp"
     "src/Analyzers.cpp"
     "src/EnglishAnalyzer.cpp"
     "src/FBFieldInfo.cpp"
