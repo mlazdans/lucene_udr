@@ -25,6 +25,7 @@
 #include "LuceneUdr.h"
 #include "LuceneHeaders.h"
 #include "Relations.h"
+#include "OffsetAttribute.h"
 #include "TermAttribute.h"
 
 
@@ -317,7 +318,9 @@ PROCEDURE FTS$ANALYZE (
     FTS$ANALYZER VARCHAR(63) CHARACTER SET UTF8 NOT NULL DEFAULT 'STANDARD'
 )
 RETURNS (
-    FTS$TERM VARCHAR(8191) CHARACTER SET UTF8
+    FTS$TERM VARCHAR(8191) CHARACTER SET UTF8,
+    FTS$START_OFFSET INTEGER,
+    FTS$END_OFFSET INTEGER
 )
 EXTERNAL NAME 'luceneudr!ftsAnalyze'
 ENGINE UDR;
@@ -330,6 +333,8 @@ FB_UDR_BEGIN_PROCEDURE(ftsAnalyze)
 
     FB_UDR_MESSAGE(OutMessage,
         (FB_INTL_VARCHAR(32765, CS_UTF8), term)
+        (FB_INTEGER, startOffset)
+        (FB_INTEGER, endOffset)
     );
 
     FB_UDR_CONSTRUCTOR
@@ -363,10 +368,12 @@ FB_UDR_BEGIN_PROCEDURE(ftsAnalyze)
             std::string text = readStringFromBlob(status, att, tra, &in->text);
             try {
                 auto analyzer = procedure->analyzers->createAnalyzer(status, att, tra, sqlDialect, analyzerName);
-                auto stringReader = newLucene<StringReader>(StringUtils::toUnicode(text));
+                uText = StringUtils::toUnicode(text);
+                auto stringReader = newLucene<StringReader>(uText);
 
                 tokenStream = analyzer->tokenStream(L"", stringReader);
                 termAttribute = tokenStream->addAttribute<TermAttribute>();
+                offsetAttribute = tokenStream->addAttribute<OffsetAttribute>();
                 tokenStream->reset();
             } catch (const LuceneException& e) {
                 const std::string error_message = StringUtils::toUTF8(e.getError());
@@ -377,6 +384,19 @@ FB_UDR_BEGIN_PROCEDURE(ftsAnalyze)
 
     TokenStreamPtr tokenStream;
     TermAttributePtr termAttribute;
+    OffsetAttributePtr offsetAttribute;
+
+    // Offsets are returned in UTF-8 bytes of the input text; wchar_t offsets
+    // differ by platform (UTF-16 on Windows, UTF-32 on Linux)
+    String uText;
+    int32_t cursorChar = 0;
+    int32_t cursorByte = 0;
+
+    // UTF-8 byte length of uText[from, to)
+    int32_t utf8Length(int32_t from, int32_t to)
+    {
+        return static_cast<int32_t>(StringUtils::toUTF8(uText.substr(from, to - from)).length());
+    }
 
     FB_UDR_FETCH_PROCEDURE
     {
@@ -394,6 +414,21 @@ FB_UDR_BEGIN_PROCEDURE(ftsAnalyze)
         out->termNull = false;
         out->term.length = static_cast<ISC_USHORT>(term.length());
         term.copy(out->term.str, out->term.length);
+
+        const int32_t start = offsetAttribute->startOffset();
+        const int32_t end = offsetAttribute->endOffset();
+
+        if (start < cursorChar) {
+            cursorChar = 0;
+            cursorByte = 0;
+        }
+        cursorByte += utf8Length(cursorChar, start);
+        cursorChar = start;
+
+        out->startOffsetNull = false;
+        out->startOffset = cursorByte;
+        out->endOffsetNull = false;
+        out->endOffset = cursorByte + utf8Length(start, end);
 
         return true;
     }
