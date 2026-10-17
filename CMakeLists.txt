@@ -13,7 +13,7 @@
 
 cmake_minimum_required (VERSION 3.13)
 
-project (luceneudr
+project (luceneudr 
     VERSION 1.4.0
     LANGUAGES CXX
 )
@@ -22,13 +22,14 @@ if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
 
-# WOW64 32-bit?
-set(FIREBIRD_DIR "C:/Program Files/Firebird/Firebird_3_0")
-set(FIREBIRD_LIB_DIR ${FIREBIRD_DIR}/lib)
+set(FIREBIRD_DIR /opt/firebird CACHE PATH "Firebird installation directory")
+set(LUCENE_DIR "" CACHE PATH "Lucene++ installation prefix (if empty, find_package() is used)")
+if(MSVC)
+    set(BOOST_LIBRARYDIR "" CACHE PATH "Directory with Boost libraries for MSVC auto-linking")
+endif()
+
 set(FIREBIRD_INCLUDE_DIR ${FIREBIRD_DIR}/include)
 set(FIREBIRD_UDR_DIR ${FIREBIRD_DIR}/plugins/udr)
-
-add_compile_definitions(WIN32_LEAN_AND_MEAN)
 
 ####################################
 # library target
@@ -66,35 +67,40 @@ target_sources(luceneudr PRIVATE
 # require C++17 standard
 target_compile_features(luceneudr PRIVATE cxx_std_17)
 target_compile_definitions(luceneudr PRIVATE HAVE_CONFIG_H)
-target_compile_options(luceneudr PRIVATE
-#    -Werror
+if(MSVC)
+    target_compile_definitions(luceneudr PRIVATE WIN32_LEAN_AND_MEAN)
+    target_compile_options(luceneudr PRIVATE /MP)
+else()
+    target_compile_options(luceneudr PRIVATE
+    #    -Werror
 
-    -Wall
-    -Wextra
-    -Wpedantic
+        -Wall
+        -Wextra
+        -Wpedantic
 
-    -Wno-unused-parameter
-)
+        -Wno-unused-parameter
+    )
+endif()
 
-# find_package(liblucene++ REQUIRED)
-# find_package(liblucene++-contrib REQUIRED)
-set(LUCENE_DIR "C:/Program Files/lucene++")
-set(liblucene++_INCLUDE_DIRS ${LUCENE_DIR}/include)
-set(liblucene++_LIBRARY_DIRS ${LUCENE_DIR}/lib)
-set(liblucene++_LIBRARIES "lucene++")
+if(LUCENE_DIR)
+    set(liblucene++_INCLUDE_DIRS ${LUCENE_DIR}/include/lucene++)
+    set(liblucene++_LIBRARY_DIRS ${LUCENE_DIR}/lib)
+    set(liblucene++_LIBRARIES lucene++)
+    set(liblucene++-contrib_INCLUDE_DIRS ${LUCENE_DIR}/include/lucene++)
+    set(liblucene++-contrib_LIBRARY_DIRS ${LUCENE_DIR}/lib)
+    set(liblucene++-contrib_LIBRARIES lucene++-contrib)
+else()
+    find_package(liblucene++ QUIET)
+    find_package(liblucene++-contrib QUIET)
+    if(NOT liblucene++_FOUND OR NOT liblucene++-contrib_FOUND)
+        message(FATAL_ERROR "Lucene++ not found. Set LUCENE_DIR, e.g. -DLUCENE_DIR=\"C:/Program Files/lucene++\"")
+    endif()
+endif()
 
-set(liblucene++-contrib_INCLUDE_DIRS ${LUCENE_DIR}/include/lucene++)
-set(liblucene++-contrib_LIBRARY_DIRS ${LUCENE_DIR}/lib)
-set(liblucene++-contrib_LIBRARIES "lucene++-contrib")
-
-include_directories(${liblucene++_INCLUDE_DIRS})
-include_directories(${liblucene++-contrib_INCLUDE_DIRS})
-include_directories(${FIREBIRD_INCLUDE_DIR})
-include_directories(C:/local/boost_1_83_0)
-
-link_directories(${liblucene++_LIBRARY_DIRS})
-link_directories(${liblucene++-contrib_LIBRARY_DIRS})
-link_directories(${FIREBIRD_LIB_DIR})
+if(MSVC)
+    # Lucene++ headers depend on Boost
+    find_package(Boost REQUIRED)
+endif()
 
 ####################################
 # include directories
@@ -115,19 +121,18 @@ target_link_directories(luceneudr PRIVATE
 )
 
 target_link_libraries(luceneudr
-    -lstdc++fs
     ${liblucene++_LIBRARIES}
     ${liblucene++-contrib_LIBRARIES}
 )
 
-# target_include_directories(luceneudr PRIVATE "include")
-# target_include_directories(luceneudr PRIVATE ${FIREBIRD_INCLUDE_DIR})
-# target_include_directories(luceneudr PRIVATE "C:/local/boost_1_83_0")
-
-# target_link_directories(luceneudr PRIVATE ${FIREBIRD_LIB_DIR})
-# target_link_directories(luceneudr PRIVATE "C:/local/boost_1_83_0/lib64-msvc-14.2")
-# target_link_directories(luceneudr PRIVATE ${liblucene++_LIBRARY_DIRS})
-# target_link_directories(luceneudr PRIVATE ${liblucene++-contrib_LIBRARY_DIRS})
+if(MSVC)
+    target_link_libraries(luceneudr Boost::boost)
+    if(BOOST_LIBRARYDIR)
+        target_link_directories(luceneudr PRIVATE ${BOOST_LIBRARYDIR})
+    endif()
+else()
+    target_link_libraries(luceneudr -lstdc++fs)
+endif()
 
 install(TARGETS luceneudr DESTINATION ${FIREBIRD_UDR_DIR})
 install(FILES "sql/fts$install.sql"

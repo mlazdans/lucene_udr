@@ -168,7 +168,13 @@
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDbg|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Label="UserMacros">
+    <FIREBIRD_ROOT Condition="'$(FIREBIRD_ROOT)'==''">C:\Firebird\5.0</FIREBIRD_ROOT>
+    <LUCENE_ROOT Condition="'$(LUCENE_ROOT)'==''">C:\lucene++</LUCENE_ROOT>
+    <LUCENE_INCLUDE_DIR Condition="'$(LUCENE_INCLUDE_DIR)'==''">$(LUCENE_ROOT)\include</LUCENE_INCLUDE_DIR>
+    <LUCENE_LIB_DIR Condition="'$(LUCENE_LIB_DIR)'=='' and '$(Configuration)|$(Platform)'=='ReleaseWithDbg|x64'">$(LUCENE_ROOT)\x64_with_pdb</LUCENE_LIB_DIR>
+    <LUCENE_LIB_DIR Condition="'$(LUCENE_LIB_DIR)'==''">$(LUCENE_ROOT)\$(PlatformTarget)</LUCENE_LIB_DIR>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)build\windows-x64\$(Configuration)\</OutDir>
@@ -178,7 +184,6 @@
     <LinkIncremental>true</LinkIncremental>
     <OutDir>$(SolutionDir)build\windows-x64\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
-    <IncludePath>C:\Boost\include\boost-1_83\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
@@ -194,13 +199,6 @@
     <LinkIncremental>false</LinkIncremental>
     <OutDir>$(SolutionDir)build\windows-x64\$(Configuration)\</OutDir>
     <IntDir>$(Platform)\$(Configuration)\</IntDir>
-    <IncludePath>C:\Boost\include\boost-1_83\;$(IncludePath)</IncludePath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDbg|x64'">
-    <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)build\windows-x64\$(Configuration)\</OutDir>
-    <IntDir>$(Platform)\$(Configuration)\</IntDir>
-    <IncludePath>C:\Boost\include\boost-1_83\;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='ReleaseWithDbg|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -216,7 +214,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(BOOST_ROOT);C:\Program Files\Firebird\Firebird_3_0\include;C:\Program Files\lucene++\include\lucene++;include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(BOOST_ROOT);$(FIREBIRD_ROOT)\include;$(LUCENE_INCLUDE_DIR);include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
@@ -227,8 +225,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>C:\Program Files\Firebird\Firebird_3_0\WOW64\lib;$(BOOST_ROOT)\stage\x86\lib;C:\Program Files\lucene++\\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>fbclient_ms.lib;lucene++.lib;lucene++-contrib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(LUCENE_LIB_DIR);$(BOOST_LIBRARYDIR);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>lucene++.lib;lucene++-contrib.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -240,7 +238,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(BOOST_ROOT);C:\Program Files\Firebird\Firebird_3_0\include;C:\Program Files\lucene++\include\lucene++;include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(BOOST_ROOT);$(FIREBIRD_ROOT)\include;$(LUCENE_INCLUDE_DIR);include</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
@@ -251,7 +249,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>C:\Program Files\Firebird\Firebird_3_0\lib;$(BOOST_ROOT)\stage\x64\lib;C:\Program Files\lucene++\lib;C:\Boost\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(LUCENE_LIB_DIR);$(BOOST_LIBRARYDIR);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>lucene++.lib;lucene++-contrib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>
@@ -274,7 +272,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(BOOST_ROOT);C:\Program Files\Firebird\Firebird_3_0\include;C:\Program Files\lucene++\include\lucene++;include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(BOOST_ROOT);$(FIREBIRD_ROOT)\include;$(LUCENE_INCLUDE_DIR);include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;WIN32;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -285,7 +283,7 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>c:\lucene++\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(LUCENE_LIB_DIR);$(BOOST_LIBRARYDIR);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>
       <AdditionalDependencies>lucene++.lib;lucene++-contrib.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -316,7 +314,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>C:\Firebird\5.0\include;c:\lucene++\include;include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(BOOST_ROOT);$(FIREBIRD_ROOT)\include;$(LUCENE_INCLUDE_DIR);include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;WIN32;NDEBUG;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -327,7 +325,7 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>C:\Program Files\Firebird\Firebird_3_0\WOW64\lib;$(BOOST_ROOT)\stage\x86\lib;C:\Program Files\lucene++\\x86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(LUCENE_LIB_DIR);$(BOOST_LIBRARYDIR);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>
       <AdditionalDependencies>lucene++.lib;lucene++-contrib.lib;%(AdditionalDependencies)</AdditionalDependencies>
@@ -362,7 +360,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(BOOST_ROOT);C:\Program Files\Firebird\Firebird_3_0\include;C:\Program Files\lucene++\include\lucene++;include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(BOOST_ROOT);$(FIREBIRD_ROOT)\include;$(LUCENE_INCLUDE_DIR);include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;WIN32_LEAN_AND_MEAN;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -373,7 +371,7 @@
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>C:\Program Files\Firebird\Firebird_3_0\lib;$(BOOST_ROOT)\stage\x64\lib;C:\Program Files\lucene++\lib;C:\Boost\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(LUCENE_LIB_DIR);$(BOOST_LIBRARYDIR);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>lucene++.lib;lucene++-contrib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>
@@ -409,7 +407,7 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <PrecompiledHeaderFile>
       </PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>C:\Firebird\5.0\include;c:\lucene++\include;include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(BOOST_ROOT);$(FIREBIRD_ROOT)\include;$(LUCENE_INCLUDE_DIR);include</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;WIN32_LEAN_AND_MEAN;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
@@ -420,7 +418,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <RandomizedBaseAddress>false</RandomizedBaseAddress>
       <EnableUAC>false</EnableUAC>
-      <AdditionalLibraryDirectories>c:\lucene++\x64_with_pdb;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(LUCENE_LIB_DIR);$(BOOST_LIBRARYDIR);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>lucene++.lib;lucene++-contrib.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <ModuleDefinitionFile>
       </ModuleDefinitionFile>
