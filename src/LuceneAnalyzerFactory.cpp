@@ -27,6 +27,8 @@
 #include "GreekAnalyzer.h"
 #include "LuceneAnalyzerFactory.h"
 #include "PersianAnalyzer.h"
+#include "PunctSplitLowerCaseASCIIFoldingAnalyzer.h"
+#include "PunctStripLowerCaseASCIIFoldingAnalyzer.h"
 #include "RussianAnalyzer.h"
 #include "SimpleASCIIFoldingAnalyzer.h"
 #include "SnowballAnalyzer.h"
@@ -102,6 +104,24 @@ namespace LuceneUDR
                 "WHITESPACE_LC_AI",
                 {
                     []() -> AnalyzerPtr { return newLucene<WhitespaceLowerCaseASCIIFoldingAnalyzer>(); },
+                    []([[maybe_unused]] const HashSet<String> stopWords) -> AnalyzerPtr { return nullptr; },
+                    []() -> HashSet<String> { return HashSet<String>::newInstance(); },
+                    false
+                }
+            },
+            {
+                "PUNCT_SPLIT_LC_AI",
+                {
+                    []() -> AnalyzerPtr { return newLucene<PunctSplitLowerCaseASCIIFoldingAnalyzer>(); },
+                    []([[maybe_unused]] const HashSet<String> stopWords) -> AnalyzerPtr { return nullptr; },
+                    []() -> HashSet<String> { return HashSet<String>::newInstance(); },
+                    false
+                }
+            },
+            {
+                "PUNCT_STRIP_LC_AI",
+                {
+                    []() -> AnalyzerPtr { return newLucene<PunctStripLowerCaseASCIIFoldingAnalyzer>(); },
                     []([[maybe_unused]] const HashSet<String> stopWords) -> AnalyzerPtr { return nullptr; },
                     []() -> HashSet<String> { return HashSet<String>::newInstance(); },
                     false

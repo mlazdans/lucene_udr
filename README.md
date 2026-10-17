@@ -159,6 +159,8 @@ The following analyzers are available by default:
 * GREEK - GreekAnalyzer;
 * KEYWORD - KeywordAnalyzer;
 * PERSIAN - PersianAnalyzer;
+* PUNCT_SPLIT_LC_AI - PunctSplitLowerCaseASCIIFoldingAnalyzer;
+* PUNCT_STRIP_LC_AI - PunctStripLowerCaseASCIIFoldingAnalyzer;
 * RUSSIAN - RussianAnalyzer;
 * SIMPLE - SimpleAnalyzer;
 * SIMPLE_AI - SimpleASCIIFoldingAnalyzer;
@@ -201,6 +203,19 @@ alphanumeric tokens (such as VAT numbers or codes like 'EU00000000001') intact. 
 lowercase and folds accented characters to their ASCII equivalents (e.g. 'ā' becomes 'a'), but unlike
 StandardAnalyzer it does **not** apply any stop-word filtering, making it suitable for non-English text and
 identifiers where an English stop-word list would be inappropriate.
+
+#### PUNCT_SPLIT_LC_AI - PunctSplitLowerCaseASCIIFoldingAnalyzer
+
+PunctSplitLowerCaseASCIIFoldingAnalyzer splits text at every character that is neither a letter nor a digit
+(Unicode, independent of locale), so codes are split into their parts: 'V10-0423' becomes 'v10' and '0423'.
+It converts the text to lowercase and folds accented characters to their ASCII equivalents. No stop words.
+
+#### PUNCT_STRIP_LC_AI - PunctStripLowerCaseASCIIFoldingAnalyzer
+
+PunctStripLowerCaseASCIIFoldingAnalyzer splits text at whitespace and removes every character that is neither
+a letter nor a digit from the tokens, so codes are matched regardless of separators: 'V10-0423' becomes
+'v100423'. It converts the text to lowercase and folds accented characters to their ASCII equivalents.
+No stop words.
 
 #### STOP - StopAnalyzer
 

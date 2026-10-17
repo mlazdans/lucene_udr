@@ -50,6 +50,9 @@
     <ClCompile Include="src\StandardNoStopASCIIFoldingAnalyzer.cpp" />
     <ClCompile Include="src\WhitespaceLowerCaseAnalyzer.cpp" />
     <ClCompile Include="src\WhitespaceLowerCaseASCIIFoldingAnalyzer.cpp" />
+    <ClCompile Include="src\PunctTokenizers.cpp" />
+    <ClCompile Include="src\PunctSplitLowerCaseASCIIFoldingAnalyzer.cpp" />
+    <ClCompile Include="src\PunctStripLowerCaseASCIIFoldingAnalyzer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\AnalyzingMultiFieldQueryParser.h" />
@@ -71,6 +74,9 @@
     <ClInclude Include="src\udr_build_no.h" />
     <ClInclude Include="src\SimpleASCIIFoldingAnalyzer.h" />
     <ClInclude Include="src\StandardNoStopASCIIFoldingAnalyzer.h" />
+    <ClInclude Include="src\PunctTokenizers.h" />
+    <ClInclude Include="src\PunctSplitLowerCaseASCIIFoldingAnalyzer.h" />
+    <ClInclude Include="src\PunctStripLowerCaseASCIIFoldingAnalyzer.h" />
     <ClInclude Include="src\WhitespaceLowerCaseAnalyzer.h" />
     <ClInclude Include="src\WhitespaceLowerCaseASCIIFoldingAnalyzer.h" />
   </ItemGroup>
