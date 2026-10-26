@@ -237,6 +237,9 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
             const std::string error_message = StringUtils::toUTF8(e.getError());
             throwException(status, error_message.c_str());
         }
+        catch (const std::exception& e) {
+            throwException(status, "%s", e.what());
+        }
     }
 
     bool explainFlag = false;
@@ -308,6 +311,9 @@ FB_UDR_BEGIN_PROCEDURE(ftsSearch)
             const std::string error_message = StringUtils::toUTF8(e.getError());
             throwException(status, error_message.c_str());
         }
+        catch (const std::exception& e) {
+            throwException(status, "%s", e.what());
+        }
         return true;
     }
 FB_UDR_END_PROCEDURE
@@ -378,6 +384,9 @@ FB_UDR_BEGIN_PROCEDURE(ftsAnalyze)
             } catch (const LuceneException& e) {
                 const std::string error_message = StringUtils::toUTF8(e.getError());
                 throwException(status, error_message.c_str());
+            }
+            catch (const std::exception& e) {
+                throwException(status, "%s", e.what());
             }
         }
     }
@@ -639,6 +648,9 @@ ORDER BY FTS$LOG_ID
         catch (const LuceneException& e) {
             const std::string error_message = StringUtils::toUTF8(e.getError());
             throwException(status, error_message.c_str());
+        }
+        catch (const std::exception& e) {
+            throwException(status, "%s", e.what());
         }
     }
 
