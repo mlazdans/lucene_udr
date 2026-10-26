@@ -1214,6 +1214,12 @@ BEGIN
   RETURNS VARCHAR(20) CHARACTER SET UTF8 DETERMINISTIC;
 
   /**
+   * Returns the version of the Lucene UDR library.
+  **/
+  FUNCTION FTS$UDR_VERSION ()
+  RETURNS VARCHAR(20) CHARACTER SET UTF8 DETERMINISTIC;
+
+  /**
    * Returns the directory where the files and folders
    * of the full-text index for the current database are located.
   **/
@@ -1419,6 +1425,12 @@ BEGIN
   RETURNS VARCHAR(20) CHARACTER SET UTF8
   DETERMINISTIC
   EXTERNAL NAME 'luceneudr!getLuceneVersion'
+  ENGINE UDR;
+
+  FUNCTION FTS$UDR_VERSION ()
+  RETURNS VARCHAR(20) CHARACTER SET UTF8
+  DETERMINISTIC
+  EXTERNAL NAME 'luceneudr!getUdrVersion'
   ENGINE UDR;
 
 
